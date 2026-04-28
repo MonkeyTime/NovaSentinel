@@ -169,15 +169,19 @@ def test_ransomware_guard_persists_explainable_incident_and_recovery(tmp_path: P
     events: list[EventRecord] = []
     emergency_calls: list[tuple[str, str, list[str] | None]] = []
     guard = RansomwareGuard(
-        settings=AppSettings(ransomware_guard_enabled=True),
+        settings=AppSettings(ransomware_guard_enabled=True, scan_roots=[str(tmp_path)]),
         on_event=events.append,
         emergency_callback=lambda path, reason, related_paths: emergency_calls.append((path, reason, related_paths)),
     )
 
+    folders = [tmp_path / "Documents", tmp_path / "Desktop", tmp_path / "Downloads"]
+    extensions = [".docx", ".xlsx", ".pdf", ".zip"]
+    for folder in folders:
+        folder.mkdir()
     for index in range(ransomware_guard_module.BURST_THRESHOLD):
-        document = tmp_path / f"client-{index}.docx"
+        document = folders[index % len(folders)] / f"client-{index}{extensions[index % len(extensions)]}"
         document.write_text(f"important content {index}", encoding="utf-8")
-        guard.record_file_activity(str(document))
+        guard.record_file_activity(str(document), event_kind="modified")
 
     incidents = guard.list_incidents()
     assert len(incidents) == 1
@@ -199,6 +203,37 @@ def test_ransomware_guard_persists_explainable_incident_and_recovery(tmp_path: P
     assert any(event.title == "Ransomware-like modification burst" for event in events)
     assert len(emergency_calls) == 1
     assert emergency_calls[0][1] == "ransomware_burst"
+
+
+def test_browser_like_created_burst_preserves_evidence_without_containment(tmp_path: Path, monkeypatch):
+    incidents_path = tmp_path / "incidents.json"
+    recovery_dir = tmp_path / "recovery_vault"
+    downloads = tmp_path / "Downloads"
+    downloads.mkdir()
+    monkeypatch.setattr(ransomware_guard_module, "INCIDENTS_FILE", incidents_path)
+    monkeypatch.setattr(ransomware_guard_module, "RECOVERY_DIR", recovery_dir)
+
+    events: list[EventRecord] = []
+    emergency_calls: list[tuple[str, str, list[str] | None]] = []
+    guard = RansomwareGuard(
+        settings=AppSettings(ransomware_guard_enabled=True, scan_roots=[str(downloads)]),
+        on_event=events.append,
+        emergency_callback=lambda path, reason, related_paths: emergency_calls.append((path, reason, related_paths)),
+    )
+
+    for index in range(ransomware_guard_module.BURST_THRESHOLD):
+        document = downloads / f"download-{index}.jpg"
+        document.write_text(f"browser download {index}", encoding="utf-8")
+        guard.record_file_activity(str(document), event_kind="created")
+
+    incidents = guard.list_incidents()
+    assert len(incidents) == 1
+    incident = incidents[0]
+    assert incident["status"] == "observed"
+    assert incident["actions"] == ["recovery_evidence_preserved"]
+    assert incident["signals"]["event_kinds"] == {"created": ransomware_guard_module.BURST_THRESHOLD}
+    assert emergency_calls == []
+    assert any(event.title == "Document modification burst observed" for event in events)
 
 
 def test_manual_panic_creates_incident(tmp_path: Path, monkeypatch):

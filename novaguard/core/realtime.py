@@ -115,10 +115,10 @@ class RealtimeProtector:
             observer.join(timeout=5)
         self.observers = []
 
-    def _register_sensitive_activity(self, path: str) -> None:
+    def _register_sensitive_activity(self, path: str, event_kind: str = "modified") -> None:
         if not self._should_process_path(path):
             return
-        self.ransomware_guard.record_file_activity(path)
+        self.ransomware_guard.record_file_activity(path, event_kind=event_kind)
 
     def _worker_loop(self) -> None:
         while not self.stop_event.is_set():
@@ -192,7 +192,7 @@ class _RealtimeHandler(FileSystemEventHandler):
     def __init__(
         self,
         event_queue: queue.Queue[str],
-        activity_callback: Callable[[str], None],
+        activity_callback: Callable[[str, str], None],
         path_filter: Callable[[str], bool],
     ) -> None:
         self.event_queue = event_queue
@@ -200,20 +200,20 @@ class _RealtimeHandler(FileSystemEventHandler):
         self.path_filter = path_filter
 
     def on_created(self, event: FileSystemEvent) -> None:
-        self._handle(event)
+        self._handle(event, "created")
 
     def on_modified(self, event: FileSystemEvent) -> None:
-        self._handle(event)
+        self._handle(event, "modified")
 
     def on_moved(self, event: FileSystemEvent) -> None:
         destination = getattr(event, "dest_path", "")
         if destination:
-            self._push(destination)
+            self._push(destination, "moved")
 
-    def _handle(self, event: FileSystemEvent) -> None:
-        self._push(event.src_path)
+    def _handle(self, event: FileSystemEvent, event_kind: str) -> None:
+        self._push(event.src_path, event_kind)
 
-    def _push(self, path: str) -> None:
+    def _push(self, path: str, event_kind: str) -> None:
         if not self.path_filter(path):
             return
         target = Path(path)
@@ -223,4 +223,4 @@ class _RealtimeHandler(FileSystemEventHandler):
         except OSError:
             return
         self.event_queue.put(path)
-        self.activity_callback(path)
+        self.activity_callback(path, event_kind)

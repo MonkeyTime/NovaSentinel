@@ -35,6 +35,7 @@ SENSITIVE_DOCUMENT_EXTENSIONS = {
 
 BURST_WINDOW_SECONDS = 12
 BURST_THRESHOLD = 12
+CONTAINMENT_SCORE_THRESHOLD = 90
 PANIC_COOLDOWN_SECONDS = 15
 MAX_RECOVERY_FILE_SIZE = 25 * 1024 * 1024
 MAX_INCIDENT_RECOVERY_FILES = 24
@@ -51,19 +52,19 @@ class RansomwareGuard:
         self.settings = settings
         self.on_event = on_event
         self.emergency_callback = emergency_callback
-        self.activity: deque[tuple[float, str]] = deque(maxlen=128)
+        self.activity: deque[tuple[float, str, str]] = deque(maxlen=256)
         self.recovery_candidates: dict[str, dict] = {}
         self.last_panic_trigger_at = 0.0
         self.incidents: list[dict] = load_json_list(INCIDENTS_FILE)
 
-    def record_file_activity(self, path: str) -> None:
+    def record_file_activity(self, path: str, event_kind: str = "modified") -> None:
         if not self.settings.ransomware_guard_enabled:
             return
         target = Path(path)
         if target.suffix.lower() not in SENSITIVE_DOCUMENT_EXTENSIONS:
             return
         now = time.time()
-        self.activity.append((now, str(target)))
+        self.activity.append((now, str(target), event_kind))
         self._capture_recovery_candidate(target)
         recent_paths = self._recent_paths(now)
         if len(recent_paths) >= BURST_THRESHOLD and now - self.last_panic_trigger_at > PANIC_COOLDOWN_SECONDS:
@@ -76,18 +77,24 @@ class RansomwareGuard:
                     f"{len(recent_paths)} sensitive files changed inside {BURST_WINDOW_SECONDS}s",
                     "rapid document modification burst",
                 ],
-                containment=True,
+                containment=None,
             )
+            contained = "panic_mode_requested" in incident["actions"]
             self.on_event(
                 EventRecord(
                     timestamp=incident["timestamp"],
-                    level="critical",
-                    title="Ransomware-like modification burst",
-                    description="NovaSentinel detected a rapid burst of document modifications and triggered containment.",
+                    level="critical" if contained else "warning",
+                    title="Ransomware-like modification burst" if contained else "Document modification burst observed",
+                    description=(
+                        "NovaSentinel detected a high-confidence rapid document modification burst and triggered containment."
+                        if contained
+                        else "NovaSentinel observed a rapid document burst, preserved recovery evidence and left applications running."
+                    ),
                     path=str(target),
                 )
             )
-            self.emergency_callback(str(target), "ransomware_burst", recent_paths)
+            if contained:
+                self.emergency_callback(str(target), "ransomware_burst", recent_paths)
 
     def record_canary_touch(self, path: str) -> None:
         if not self.settings.ransomware_guard_enabled:
@@ -138,7 +145,7 @@ class RansomwareGuard:
 
     def _recent_paths(self, now: float) -> list[str]:
         paths: list[str] = []
-        for stamp, path in self.activity:
+        for stamp, path, _event_kind in self.activity:
             if now - stamp <= BURST_WINDOW_SECONDS and path not in paths:
                 paths.append(path)
         return paths
@@ -174,7 +181,7 @@ class RansomwareGuard:
         trigger_path: str,
         related_paths: list[str],
         evidence: list[str],
-        containment: bool,
+        containment: bool | None,
     ) -> dict:
         incident_id = uuid4().hex
         timestamp = datetime.now().isoformat(timespec="seconds")
@@ -184,6 +191,8 @@ class RansomwareGuard:
             if path in self.recovery_candidates
         ][:MAX_INCIDENT_RECOVERY_FILES]
         behavior = self._build_behavior_profile(reason, related_paths, recovery_files)
+        if containment is None:
+            containment = self._should_contain_behavior(reason, behavior)
         evidence = list(evidence)
         evidence.append(
             f"behavior score {behavior['score']}/100 ({behavior['confidence']} confidence)"
@@ -214,7 +223,7 @@ class RansomwareGuard:
             "evidence": evidence,
             "recovery_files": recovery_files,
             "timeline": timeline,
-            "actions": ["panic_mode_requested"] if containment else [],
+            "actions": ["panic_mode_requested"] if containment else ["recovery_evidence_preserved"],
             "status": "contained" if containment else "observed",
         }
         self.incidents.append(incident)
@@ -233,9 +242,14 @@ class RansomwareGuard:
         extensions = Counter(path.suffix.lower() or "<none>" for path in paths)
         timestamps = [
             stamp
-            for stamp, activity_path in self.activity
+            for stamp, activity_path, _event_kind in self.activity
             if activity_path in related_paths
         ]
+        event_kinds = Counter(
+            event_kind
+            for _stamp, activity_path, event_kind in self.activity
+            if activity_path in related_paths
+        )
         window_span = max(timestamps) - min(timestamps) if len(timestamps) > 1 else 0.0
         burst_rate = len(related_paths) / max(window_span, 1.0) if related_paths else 0.0
         recovery_coverage = int((len(recovery_files) / len(related_paths)) * 100) if related_paths else 0
@@ -249,6 +263,7 @@ class RansomwareGuard:
             "burst_rate_per_second": round(burst_rate, 2),
             "recovery_coverage_percent": recovery_coverage,
             "protected_root_hits": protected_root_hits,
+            "event_kinds": dict(event_kinds),
         }
         score = self._behavior_score(reason, signals)
         return {
@@ -268,16 +283,21 @@ class RansomwareGuard:
         directory_count = int(signals["directory_count"])
         extension_count = int(signals["extension_count"])
         burst_rate = float(signals["burst_rate_per_second"])
-        recovery_coverage = int(signals["recovery_coverage_percent"])
         protected_root_hits = int(signals["protected_root_hits"])
+        event_kinds = signals.get("event_kinds", {})
+        modified_count = int(event_kinds.get("modified", 0)) + int(event_kinds.get("moved", 0))
+        create_only_burst = file_count > 0 and modified_count == 0
 
-        score = 35
-        score += min(25, int((file_count / max(BURST_THRESHOLD, 1)) * 20))
-        score += min(15, directory_count * 5)
-        score += min(10, extension_count * 3)
+        score = 20
+        score += min(20, int((file_count / max(BURST_THRESHOLD, 1)) * 18))
+        score += min(15, max(0, directory_count - 1) * 6)
+        score += min(10, max(0, extension_count - 1) * 4)
         score += 15 if burst_rate >= 2 else 10 if burst_rate >= 1 else 5
-        score += 5 if recovery_coverage >= 50 else 0
-        score += min(10, protected_root_hits * 3)
+        score += min(5, protected_root_hits)
+        if modified_count >= BURST_THRESHOLD:
+            score += 10
+        if create_only_burst:
+            score -= 18
         return max(0, min(100, score))
 
     def _confidence_for(self, reason: str, score: int) -> str:
@@ -302,6 +322,21 @@ class RansomwareGuard:
         if score >= 80:
             tags.append("High behavior score")
         return tags
+
+    def _should_contain_behavior(self, reason: str, behavior: dict) -> bool:
+        if reason in {"canary_touched", "manual_panic"}:
+            return True
+        signals = behavior["signals"]
+        score = int(behavior["score"])
+        directory_count = int(signals["directory_count"])
+        extension_count = int(signals["extension_count"])
+        event_kinds = signals.get("event_kinds", {})
+        modified_count = int(event_kinds.get("modified", 0)) + int(event_kinds.get("moved", 0))
+        if modified_count < BURST_THRESHOLD:
+            return False
+        if score < CONTAINMENT_SCORE_THRESHOLD:
+            return False
+        return directory_count >= 2 or extension_count >= 3
 
     def _protected_root_hits(self, related_paths: list[str]) -> int:
         roots = [str(Path(root)).lower() for root in self.settings.scan_roots if root]
