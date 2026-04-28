@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments
+.venv/
+venv/
+env/
+
+# Generated builds and installers
+build/
+dist/
+dist_*/
+release/
+*.spec
+
+# Local test/runtime scratch data
+.test_*/
+pytest_*_base/
+pytest_*_temp/
+smoke_scan/
+
+# NovaSentinel runtime state if copied locally
+NovaSentinel/
+logs/
+quarantine/
+canaries/
+recovery_vault/
+settings.json
+history.json
+events.json
+incidents.json
+lockdown_state.json
+
+# OS/editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
