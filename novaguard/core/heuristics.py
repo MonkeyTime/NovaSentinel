@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from time import time
@@ -178,6 +180,17 @@ RUNTIME_STATE_BASE_FILENAMES = {
     "incidents.json",
     "lockdown_state.json",
 }
+NO_WINDOW_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+TRUSTED_PUBLISHER_SUBJECTS = {
+    "opera norway as",
+    "microsoft corporation",
+}
+TRUSTED_PUBLISHER_SCORE_CAP = 46
+HARD_MALICIOUS_CATEGORIES = {
+    "content",
+    "packed-section-name",
+}
+_SIGNATURE_CACHE: dict[tuple[str, int, int], str] = {}
 
 
 def _is_same_or_child(path: Path, root: Path) -> bool:
@@ -262,6 +275,76 @@ def add_hit(hits: list[DetectionHit], category: str, score: int, explanation: st
             source=source,
         )
     )
+
+
+def _powershell_signature_subject(path: Path) -> str:
+    try:
+        stat = path.stat()
+    except OSError:
+        return ""
+    cache_key = (str(path).casefold(), int(stat.st_mtime), int(stat.st_size))
+    if cache_key in _SIGNATURE_CACHE:
+        return _SIGNATURE_CACHE[cache_key]
+    env = dict(os.environ)
+    env["NOVASENTINEL_SIGNATURE_PATH"] = str(path)
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                (
+                    "$sig = Get-AuthenticodeSignature -LiteralPath $env:NOVASENTINEL_SIGNATURE_PATH; "
+                    "if ($sig.Status -eq 'Valid' -and $sig.SignerCertificate) { "
+                    "$sig.SignerCertificate.Subject }"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=4,
+            env=env,
+            creationflags=NO_WINDOW_FLAGS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        subject = ""
+    else:
+        subject = result.stdout.strip() if result.returncode == 0 else ""
+    _SIGNATURE_CACHE[cache_key] = subject
+    return subject
+
+
+def trusted_publisher_subject(path: Path) -> str:
+    if path.suffix.lower() not in {".exe", ".dll", ".scr", ".msi"}:
+        return ""
+    subject = _powershell_signature_subject(path)
+    lowered = subject.casefold()
+    if not subject:
+        return ""
+    if any(publisher in lowered for publisher in TRUSTED_PUBLISHER_SUBJECTS):
+        return subject
+    return ""
+
+
+def apply_trusted_publisher_cap(path: Path, score: int, hits: list[DetectionHit]) -> int:
+    if score < 72:
+        return score
+    if any(hit.category in HARD_MALICIOUS_CATEGORIES for hit in hits):
+        return score
+    subject = trusted_publisher_subject(path)
+    if not subject:
+        return score
+    add_hit(
+        hits,
+        "trusted-publisher",
+        0,
+        "Valid Authenticode signature from a trusted desktop software publisher; capability-only PE signals were capped.",
+        subject,
+        source="trust-policy",
+    )
+    return min(score, TRUSTED_PUBLISHER_SCORE_CAP)
 
 
 def _looks_like_benign_source_code(path: Path, lowered: bytes) -> bool:
@@ -472,6 +555,7 @@ def analyze_file(path: str | Path, max_file_size_mb: int = 64) -> ScanResult | N
         add_hit(hits, "size", 10, "Very small executable stubs are often used by downloaders or loaders.", str(size))
 
     score = min(sum(hit.score for hit in hits), 100)
+    score = apply_trusted_publisher_cap(target, score, hits)
     severity, malicious = classify_severity(score)
 
     try:

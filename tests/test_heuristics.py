@@ -104,6 +104,87 @@ def test_pe_api_intent_families_are_explainable(tmp_path: Path, monkeypatch):
     assert any("network-staging" in item for item in evidence)
 
 
+def test_trusted_signed_desktop_binary_caps_capability_only_pe_score(tmp_path: Path, monkeypatch):
+    sample = tmp_path / "opera.exe"
+    sample.write_bytes(b"MZ" + b"\x00" * 200_000)
+
+    class FakeImport:
+        def __init__(self, name: str):
+            self.name = name.encode("utf-8")
+
+    class FakeImportEntry:
+        imports = [
+            FakeImport("OpenProcess"),
+            FakeImport("VirtualAllocEx"),
+            FakeImport("WriteProcessMemory"),
+            FakeImport("CreateRemoteThread"),
+            FakeImport("URLDownloadToFileW"),
+            FakeImport("InternetOpenW"),
+            FakeImport("CryptEncrypt"),
+            FakeImport("RegSetValueExW"),
+            FakeImport("FindFirstFileW"),
+            FakeImport("FindNextFileW"),
+            FakeImport("WriteFile"),
+        ]
+
+    class FakeSection:
+        Name = b".text\x00\x00\x00"
+
+        def get_entropy(self):
+            return 5.2
+
+    class FakeHeader:
+        TimeDateStamp = 1_700_000_000
+
+    class FakePE:
+        sections = [FakeSection() for _index in range(10)]
+        DIRECTORY_ENTRY_IMPORT = [FakeImportEntry()]
+        FILE_HEADER = FakeHeader()
+
+        def __init__(self, path, fast_load=True):
+            pass
+
+        def parse_data_directories(self):
+            pass
+
+        def get_overlay_data_start_offset(self):
+            return None
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(heuristics_module.pefile, "PE", FakePE)
+    monkeypatch.setattr(
+        heuristics_module,
+        "trusted_publisher_subject",
+        lambda path: "CN=Opera Norway AS, O=Opera Norway AS, L=Oslo, C=NO",
+    )
+
+    result = analyze_file(sample, max_file_size_mb=2)
+
+    assert result is not None
+    assert result.score == heuristics_module.TRUSTED_PUBLISHER_SCORE_CAP
+    assert result.malicious is False
+    assert any(hit.category == "trusted-publisher" for hit in result.hits)
+
+
+def test_trusted_publisher_does_not_cap_hard_malicious_content(tmp_path: Path, monkeypatch):
+    sample = tmp_path / "signed_dropper.exe"
+    sample.write_bytes(b"MZ powershell -enc ZQBjAGgAbwA= vssadmin delete shadows")
+    monkeypatch.setattr(
+        heuristics_module,
+        "trusted_publisher_subject",
+        lambda path: "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+    )
+
+    result = analyze_file(sample, max_file_size_mb=2)
+
+    assert result is not None
+    assert result.score >= 72
+    assert result.malicious is True
+    assert not any(hit.category == "trusted-publisher" for hit in result.hits)
+
+
 def test_pe_structure_features_flag_packed_shape(tmp_path: Path, monkeypatch):
     sample = tmp_path / "packed.exe"
     sample.write_bytes(b"MZ" + b"\x90" * 300_000)
