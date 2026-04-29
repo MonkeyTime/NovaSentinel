@@ -256,9 +256,9 @@ class NovaSentinelWindow(ctk.CTk):
             frame,
             columns=("time", "severity", "score", "confidence", "attack", "reason", "status", "files", "recovery", "tags", "trigger"),
             headings=(self.t("heading.time"), self.t("heading.severity"), self.t("heading.score"), self.t("heading.confidence"), self.t("heading.attack"), self.t("heading.reason"), self.t("heading.status"), self.t("heading.files"), self.t("heading.recovery"), self.t("heading.tags"), self.t("heading.trigger")),
-            height=18,
+            height=10,
         )
-        self.incident_tree.pack(fill="both", expand=True, padx=18, pady=(0, 18))
+        self.incident_tree.pack(fill="both", expand=True, padx=18, pady=(0, 12))
         self.incident_tree.column("time", width=145, anchor="w")
         self.incident_tree.column("severity", width=90, anchor="w")
         self.incident_tree.column("score", width=70, anchor="w")
@@ -272,10 +272,10 @@ class NovaSentinelWindow(ctk.CTk):
         self.incident_tree.column("trigger", width=260, anchor="w")
         self.incident_tree.bind("<<TreeviewSelect>>", lambda _event: self._refresh_selected_incident_detail())
         detail_card = ctk.CTkFrame(frame, fg_color="#102823")
-        detail_card.pack(fill="x", padx=18, pady=(0, 18))
+        detail_card.pack(fill="both", expand=True, padx=18, pady=(0, 18))
         ctk.CTkLabel(detail_card, text="Incident detail", font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", padx=18, pady=(12, 4))
-        self.incident_detail_text = ctk.CTkTextbox(detail_card, height=130)
-        self.incident_detail_text.pack(fill="x", padx=18, pady=(0, 14))
+        self.incident_detail_text = ctk.CTkTextbox(detail_card, height=210)
+        self.incident_detail_text.pack(fill="both", expand=True, padx=18, pady=(0, 14))
         self.incident_detail_text.insert("1.0", "Select an incident to inspect its behavior score, timeline, evidence and recovery coverage.")
         self.incident_detail_text.configure(state="disabled")
         return frame
@@ -736,8 +736,9 @@ class NovaSentinelWindow(ctk.CTk):
                 )
             if self.incident_tree:
                 incident_rows: list[tuple] = []
+                incident_row_ids: list[str] = []
                 self.incident_detail_by_key = {}
-                for item in reversed(snapshot.get("incidents", [])[-120:]):
+                for index, item in enumerate(reversed(snapshot.get("incidents", [])[-120:])):
                     row = (
                         item.get("timestamp", ""),
                         str(item.get("severity", "")).upper(),
@@ -751,12 +752,17 @@ class NovaSentinelWindow(ctk.CTk):
                         "; ".join(item.get("tags", [])[:3]),
                         item.get("trigger_path", ""),
                     )
+                    incident_id = self._incident_row_id(item, index)
+                    detail = self._incident_detail(item)
                     incident_rows.append(row)
-                    self.incident_detail_by_key[self._row_key(row)] = self._incident_detail(item)
+                    incident_row_ids.append(incident_id)
+                    self.incident_detail_by_key[incident_id] = detail
+                    self.incident_detail_by_key[self._row_key(row)] = detail
                 self._refresh_tree(
                     self.incident_tree,
                     incident_rows,
                     preserve_selection=True,
+                    row_ids=incident_row_ids,
                 )
                 self._refresh_selected_incident_detail()
             self._refresh_trust_center(snapshot.get("telemetry", {}))
@@ -787,9 +793,17 @@ class NovaSentinelWindow(ctk.CTk):
         else:
             self.scan_status_var.set(self.t("scan.ready"))
 
-    def _refresh_tree(self, tree: ttk.Treeview, rows: list[tuple], preserve_selection: bool = False) -> None:
-        rows = self._apply_tree_sort(tree, rows)
-        signature = tuple(rows)
+    def _refresh_tree(
+        self,
+        tree: ttk.Treeview,
+        rows: list[tuple],
+        preserve_selection: bool = False,
+        row_ids: list[str] | None = None,
+    ) -> None:
+        row_pairs = list(zip(rows, row_ids or [None] * len(rows)))
+        row_pairs = self._apply_tree_sort_pairs(tree, row_pairs)
+        rows = [row for row, _row_id in row_pairs]
+        signature = tuple((row, row_id or "") for row, row_id in row_pairs)
         tree_key = id(tree)
         if self.tree_signatures.get(tree_key) == signature:
             return
@@ -797,14 +811,18 @@ class NovaSentinelWindow(ctk.CTk):
 
         selected_key = None
         focused_key = None
+        selected_iid = None
+        focused_iid = None
         if preserve_selection:
             selected = tree.selection()
             if selected:
+                selected_iid = selected[0]
                 selected_values = tree.item(selected[0], "values")
                 if selected_values:
                     selected_key = selected_values[0]
             focused = tree.focus()
             if focused:
+                focused_iid = focused
                 focused_values = tree.item(focused, "values")
                 if focused_values:
                     focused_key = focused_values[0]
@@ -813,11 +831,22 @@ class NovaSentinelWindow(ctk.CTk):
             tree.delete(item)
         selection_item = ""
         focus_item = ""
-        for index, row in enumerate(rows):
-            item_id = tree.insert("", "end", values=row, tags=self._tree_tags_for_row(row, index))
-            if preserve_selection and selected_key is not None and row and row[0] == selected_key:
+        for index, (row, row_id) in enumerate(row_pairs):
+            insert_options = {"values": row, "tags": self._tree_tags_for_row(row, index)}
+            if row_id:
+                insert_options["iid"] = row_id
+            try:
+                item_id = tree.insert("", "end", **insert_options)
+            except tk.TclError:
+                insert_options.pop("iid", None)
+                item_id = tree.insert("", "end", **insert_options)
+            if preserve_selection and row_id and selected_iid == row_id:
                 selection_item = item_id
-            if preserve_selection and focused_key is not None and row and row[0] == focused_key:
+            elif preserve_selection and selected_key is not None and row and str(row[0]) == str(selected_key):
+                selection_item = item_id
+            if preserve_selection and row_id and focused_iid == row_id:
+                focus_item = item_id
+            elif preserve_selection and focused_key is not None and row and str(row[0]) == str(focused_key):
                 focus_item = item_id
         if preserve_selection and selection_item:
             tree.selection_set(selection_item)
@@ -836,15 +865,22 @@ class NovaSentinelWindow(ctk.CTk):
         self._refresh_tree(tree, rows, preserve_selection=True)
 
     def _apply_tree_sort(self, tree: ttk.Treeview, rows: list[tuple]) -> list[tuple]:
+        return [row for row, _row_id in self._apply_tree_sort_pairs(tree, [(row, None) for row in rows])]
+
+    def _apply_tree_sort_pairs(self, tree: ttk.Treeview, row_pairs: list[tuple[tuple, str | None]]) -> list[tuple[tuple, str | None]]:
         tree_key = id(tree)
         columns = self.tree_columns.get(tree_key, ())
         sort_state = self.tree_sort_state.get(tree_key)
         if not sort_state or sort_state[0] not in columns:
             self._update_tree_headings(tree)
-            return list(rows)
+            return list(row_pairs)
         column, reverse = sort_state
         column_index = columns.index(column)
-        sorted_rows = sorted(rows, key=lambda row: self._sortable_value(row[column_index] if column_index < len(row) else ""), reverse=reverse)
+        sorted_rows = sorted(
+            row_pairs,
+            key=lambda pair: self._sortable_value(pair[0][column_index] if column_index < len(pair[0]) else ""),
+            reverse=reverse,
+        )
         self._update_tree_headings(tree)
         return sorted_rows
 
@@ -874,6 +910,14 @@ class NovaSentinelWindow(ctk.CTk):
 
     def _row_key(self, row) -> tuple[str, ...]:
         return tuple(str(value) for value in row)
+
+    def _incident_row_id(self, incident: dict, index: int = 0) -> str:
+        incident_id = str(incident.get("id") or "").strip()
+        if incident_id:
+            return f"incident:{incident_id}"
+        timestamp = str(incident.get("timestamp", "")).strip() or "unknown"
+        trigger = Path(str(incident.get("trigger_path", ""))).name or "incident"
+        return f"incident:fallback:{index}:{timestamp}:{trigger}"
 
     def _tree_tags_for_row(self, row: tuple, index: int = 0) -> tuple[str, ...]:
         values = [str(value).casefold() for value in row]
@@ -1064,7 +1108,7 @@ class NovaSentinelWindow(ctk.CTk):
                 return
         values = self.incident_tree.item(selected[0], "values")
         row_key = self._row_key(values)
-        detail = self.incident_detail_by_key.get(row_key, "Incident detail is not available yet.")
+        detail = self.incident_detail_by_key.get(selected[0]) or self.incident_detail_by_key.get(row_key, "Incident detail is not available yet.")
         signature = (row_key, detail)
         if self.incident_detail_signature == signature:
             return

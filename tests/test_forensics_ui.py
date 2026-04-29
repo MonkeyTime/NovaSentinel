@@ -83,3 +83,66 @@ def test_tree_tags_and_attack_summary_are_user_friendly():
         }
     )
     assert "T1486" in summary
+
+
+def test_incident_detail_uses_stable_tree_item_id():
+    class FakeTree:
+        def selection(self):
+            return ("incident:second",)
+
+        def item(self, _item_id, option):
+            assert option == "values"
+            return ("2026-04-29T12:00:00", "CRITICAL", "92")
+
+    class FakeText:
+        def __init__(self):
+            self.content = ""
+
+        def configure(self, **_kwargs):
+            pass
+
+        def delete(self, *_args):
+            self.content = ""
+
+        def insert(self, _index, text):
+            self.content = text
+
+    window = _window_stub()
+    text = FakeText()
+    window.incident_tree = FakeTree()
+    window.incident_detail_text = text
+    window.incident_detail_signature = None
+    window.incident_detail_by_key = {
+        ("2026-04-29T12:00:00", "CRITICAL", "92"): "wrong duplicate detail",
+        "incident:second": "right incident detail",
+    }
+
+    window._refresh_selected_incident_detail()
+
+    assert text.content == "right incident detail"
+
+
+def test_incident_detail_includes_attack_xai_and_graph():
+    window = _window_stub()
+    detail = window._incident_detail(
+        {
+            "id": "abc",
+            "reason": "ransomware_burst",
+            "behavior_model": "ransomware-behavior-score-v2",
+            "behavior_score": 92,
+            "confidence": "high",
+            "status": "contained",
+            "signals": {"sensitive_file_count": 4, "directory_count": 2, "extension_count": 2, "burst_rate_per_second": 3.5},
+            "related_paths": [r"C:\Users\admin\Documents\a.docx"],
+            "recovery_files": [],
+            "evidence": ["vssadmin delete shadows"],
+            "timeline": [],
+            "tags": ["burst"],
+            "actions": ["panic_mode_requested"],
+        }
+    )
+
+    assert "MITRE ATT&CK:" in detail
+    assert "XAI:" in detail
+    assert "Incident graph:" in detail
+    assert "T1486" in detail
