@@ -11,6 +11,7 @@ from time import time
 import pefile
 
 import novaguard.config as config
+from novaguard.attack import correlate_scan_result, explain_scan_result
 from novaguard.models import DetectionHit, ScanResult
 
 
@@ -563,7 +564,7 @@ def analyze_file(path: str | Path, max_file_size_mb: int = 64) -> ScanResult | N
     except OSError:
         sha256 = ""
 
-    return ScanResult(
+    result = ScanResult(
         path=str(target),
         score=score,
         severity=severity,
@@ -574,3 +575,6 @@ def analyze_file(path: str | Path, max_file_size_mb: int = 64) -> ScanResult | N
         scanned_at=datetime.now().isoformat(timespec="seconds"),
         hits=hits,
     )
+    result.attack = correlate_scan_result(result)
+    result.xai = explain_scan_result(result)
+    return result

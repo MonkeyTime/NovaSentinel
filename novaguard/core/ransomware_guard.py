@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
+from novaguard.attack import build_incident_graph, correlate_incident, explain_incident
 from novaguard.config import INCIDENTS_FILE, RECOVERY_DIR, load_json_list, save_json_list
 from novaguard.models import AppSettings, EventRecord
 
@@ -226,6 +227,9 @@ class RansomwareGuard:
             "actions": ["panic_mode_requested"] if containment else ["recovery_evidence_preserved"],
             "status": "contained" if containment else "observed",
         }
+        incident["attack"] = correlate_incident(incident)
+        incident["xai"] = explain_incident(incident)
+        incident["incident_graph"] = build_incident_graph(incident)
         self.incidents.append(incident)
         self.incidents = self.incidents[-300:]
         save_json_list(INCIDENTS_FILE, self.incidents)

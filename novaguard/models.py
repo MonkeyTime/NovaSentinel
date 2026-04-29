@@ -29,6 +29,8 @@ class ScanResult:
     hits: list[DetectionHit] = field(default_factory=list)
     action_taken: str = "none"
     post_alert: dict[str, Any] | None = None
+    attack: dict[str, Any] | None = None
+    xai: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)

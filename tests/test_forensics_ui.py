@@ -62,3 +62,24 @@ def test_forensic_counts_and_translations_exist():
     assert counts == (1, 2, 1, 3)
     assert tr("fr", "nav.forensics") == "Forensic"
     assert tr("en", "forensics.title") == "Forensics"
+    assert tr("fr", "heading.attack") == "ATT&CK"
+
+
+def test_tree_tags_and_attack_summary_are_user_friendly():
+    window = _window_stub()
+    row = ("2026-04-29T12:00:00", "CRITICAL", 92, "T1486 Data Encrypted for Impact", "contained")
+    tags = window._tree_tags_for_row(row, index=1)
+
+    assert "row_odd" in tags
+    assert "severity_critical" in tags
+    assert "status_contained" in tags
+
+    summary = window._attack_summary_for_incident(
+        {
+            "reason": "ransomware_burst",
+            "signals": {"directory_count": 3},
+            "actions": [],
+            "evidence": [],
+        }
+    )
+    assert "T1486" in summary

@@ -8,6 +8,7 @@ from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 
 from novaguard import APP_NAME, APP_VERSION
+from novaguard.attack import build_incident_graph, correlate_incident, correlate_scan_result, explain_incident, explain_scan_result
 from novaguard.bootstrap import ensure_icon_assets
 from novaguard.i18n import LANGUAGES, normalize_language, tr, trust_center_summary
 from novaguard.models import AppSettings
@@ -89,6 +90,7 @@ class NovaSentinelWindow(ctk.CTk):
         self.current_view = "Dashboard"
 
         self._apply_window_icon()
+        self._configure_tree_style()
 
         self._build_sidebar()
         self._build_views()
@@ -171,8 +173,8 @@ class NovaSentinelWindow(ctk.CTk):
         ctk.CTkLabel(table_card, text=self.t("dashboard.recent"), font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=18, pady=(18, 10))
         self.result_tree = self._make_tree(
             table_card,
-            columns=("time", "severity", "score", "path", "action"),
-            headings=(self.t("heading.time"), self.t("heading.severity"), self.t("heading.score"), self.t("heading.path"), self.t("heading.action")),
+            columns=("time", "severity", "score", "attack", "path", "action"),
+            headings=(self.t("heading.time"), self.t("heading.severity"), self.t("heading.score"), self.t("heading.attack"), self.t("heading.path"), self.t("heading.action")),
             height=18,
         )
         self.result_tree.pack(fill="both", expand=True, padx=18, pady=(0, 18))
@@ -252,8 +254,8 @@ class NovaSentinelWindow(ctk.CTk):
 
         self.incident_tree = self._make_tree(
             frame,
-            columns=("time", "severity", "score", "confidence", "reason", "status", "files", "recovery", "tags", "evidence", "trigger"),
-            headings=(self.t("heading.time"), self.t("heading.severity"), self.t("heading.score"), self.t("heading.confidence"), self.t("heading.reason"), self.t("heading.status"), self.t("heading.files"), self.t("heading.recovery"), self.t("heading.tags"), self.t("heading.evidence"), self.t("heading.trigger")),
+            columns=("time", "severity", "score", "confidence", "attack", "reason", "status", "files", "recovery", "tags", "trigger"),
+            headings=(self.t("heading.time"), self.t("heading.severity"), self.t("heading.score"), self.t("heading.confidence"), self.t("heading.attack"), self.t("heading.reason"), self.t("heading.status"), self.t("heading.files"), self.t("heading.recovery"), self.t("heading.tags"), self.t("heading.trigger")),
             height=18,
         )
         self.incident_tree.pack(fill="both", expand=True, padx=18, pady=(0, 18))
@@ -261,12 +263,12 @@ class NovaSentinelWindow(ctk.CTk):
         self.incident_tree.column("severity", width=90, anchor="w")
         self.incident_tree.column("score", width=70, anchor="w")
         self.incident_tree.column("confidence", width=90, anchor="w")
+        self.incident_tree.column("attack", width=190, anchor="w")
         self.incident_tree.column("reason", width=145, anchor="w")
         self.incident_tree.column("status", width=95, anchor="w")
         self.incident_tree.column("files", width=70, anchor="w")
         self.incident_tree.column("recovery", width=80, anchor="w")
         self.incident_tree.column("tags", width=230, anchor="w")
-        self.incident_tree.column("evidence", width=280, anchor="w")
         self.incident_tree.column("trigger", width=260, anchor="w")
         self.incident_tree.bind("<<TreeviewSelect>>", lambda _event: self._refresh_selected_incident_detail())
         detail_card = ctk.CTkFrame(frame, fg_color="#102823")
@@ -420,15 +422,80 @@ class NovaSentinelWindow(ctk.CTk):
         return frame
 
     def _make_tree(self, parent, columns, headings, height=16) -> ttk.Treeview:
-        tree = ttk.Treeview(parent, columns=columns, show="headings", height=height)
+        tree = ttk.Treeview(parent, columns=columns, show="headings", height=height, style="Nova.Treeview")
         tree_key = id(tree)
         self.tree_columns[tree_key] = tuple(columns)
         self.tree_headings[tree_key] = dict(zip(columns, headings))
         for column, heading in zip(columns, headings):
             tree.heading(column, text=heading, command=lambda current=column, widget=tree: self._toggle_tree_sort(widget, current))
-            width = 150 if column != "description" else 540
-            tree.column(column, width=width, anchor="w")
+            tree.column(column, width=self._column_width(column), anchor="w", stretch=column not in {"score", "severity", "id"})
+        self._configure_tree_tags(tree)
         return tree
+
+    def _configure_tree_style(self) -> None:
+        style = ttk.Style(self)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure(
+            "Nova.Treeview",
+            background="#0f211d",
+            foreground="#d8eee5",
+            fieldbackground="#0f211d",
+            borderwidth=0,
+            rowheight=30,
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Nova.Treeview.Heading",
+            background="#173a32",
+            foreground="#e5fff4",
+            relief="flat",
+            font=("Segoe UI", 10, "bold"),
+            padding=(8, 6),
+        )
+        style.map(
+            "Nova.Treeview",
+            background=[("selected", "#246b59")],
+            foreground=[("selected", "#ffffff")],
+        )
+        style.map("Nova.Treeview.Heading", background=[("active", "#215447")])
+
+    def _configure_tree_tags(self, tree: ttk.Treeview) -> None:
+        tree.tag_configure("row_even", background="#0f211d")
+        tree.tag_configure("row_odd", background="#142a25")
+        tree.tag_configure("severity_critical", foreground="#ff8b8b")
+        tree.tag_configure("severity_high", foreground="#ffbf6b")
+        tree.tag_configure("severity_medium", foreground="#f4d35e")
+        tree.tag_configure("severity_low", foreground="#8fd8ff")
+        tree.tag_configure("severity_info", foreground="#b9d8ce")
+        tree.tag_configure("status_quarantined", foreground="#ff8b8b")
+        tree.tag_configure("status_contained", foreground="#ffbf6b")
+        tree.tag_configure("status_observed", foreground="#8fd8ff")
+        tree.tag_configure("trusted", foreground="#7ee7b7")
+
+    def _column_width(self, column: str) -> int:
+        return {
+            "id": 150,
+            "time": 145,
+            "severity": 92,
+            "score": 72,
+            "confidence": 96,
+            "attack": 210,
+            "path": 420,
+            "file": 230,
+            "detail": 360,
+            "evidence": 280,
+            "description": 560,
+            "trigger": 300,
+            "tags": 250,
+            "status": 105,
+            "action": 105,
+            "processes": 92,
+            "modules": 92,
+            "connections": 120,
+        }.get(column, 155)
 
     def show_view(self, name: str) -> None:
         for frame in self.frames.values():
@@ -637,7 +704,14 @@ class NovaSentinelWindow(ctk.CTk):
                 self._refresh_tree(
                     self.result_tree,
                     [
-                        (item["scanned_at"], item["severity"], item["score"], item["path"], item.get("action_taken", "none"))
+                        (
+                            item["scanned_at"],
+                            item["severity"],
+                            item["score"],
+                            self._attack_summary_for_result(item),
+                            item["path"],
+                            item.get("action_taken", "none"),
+                        )
                         for item in reversed(snapshot["history"][-40:])
                     ],
                 )
@@ -669,12 +743,12 @@ class NovaSentinelWindow(ctk.CTk):
                         str(item.get("severity", "")).upper(),
                         item.get("behavior_score", ""),
                         item.get("confidence", ""),
+                        self._attack_summary_for_incident(item),
                         item.get("reason", ""),
                         item.get("status", ""),
                         len(item.get("related_paths", [])),
                         len(item.get("recovery_files", [])),
                         "; ".join(item.get("tags", [])[:3]),
-                        "; ".join(item.get("evidence", [])[:2]),
                         item.get("trigger_path", ""),
                     )
                     incident_rows.append(row)
@@ -739,8 +813,8 @@ class NovaSentinelWindow(ctk.CTk):
             tree.delete(item)
         selection_item = ""
         focus_item = ""
-        for row in rows:
-            item_id = tree.insert("", "end", values=row)
+        for index, row in enumerate(rows):
+            item_id = tree.insert("", "end", values=row, tags=self._tree_tags_for_row(row, index))
             if preserve_selection and selected_key is not None and row and row[0] == selected_key:
                 selection_item = item_id
             if preserve_selection and focused_key is not None and row and row[0] == focused_key:
@@ -800,6 +874,67 @@ class NovaSentinelWindow(ctk.CTk):
 
     def _row_key(self, row) -> tuple[str, ...]:
         return tuple(str(value) for value in row)
+
+    def _tree_tags_for_row(self, row: tuple, index: int = 0) -> tuple[str, ...]:
+        values = [str(value).casefold() for value in row]
+        joined = " | ".join(values)
+        tags = ["row_even" if index % 2 == 0 else "row_odd"]
+        if any(value in {"critical", "error"} for value in values):
+            tags.append("severity_critical")
+        elif "high" in values:
+            tags.append("severity_high")
+        elif any(value in {"medium", "warning"} for value in values):
+            tags.append("severity_medium")
+        elif "low" in values:
+            tags.append("severity_low")
+        elif "info" in values:
+            tags.append("severity_info")
+        if "quarantined" in joined or "blocked" in joined:
+            tags.append("status_quarantined")
+        elif "contained" in joined or "panic" in joined:
+            tags.append("status_contained")
+        elif "observed" in joined or "recovery_evidence" in joined:
+            tags.append("status_observed")
+        if "trusted-publisher" in joined or "valid authenticode" in joined:
+            tags.append("trusted")
+        return tuple(tags)
+
+    def _attack_summary_for_result(self, item: dict) -> str:
+        attack = item.get("attack") or correlate_scan_result(item)
+        return self._short_cell_text(attack.get("summary") or "None", 72)
+
+    def _attack_summary_for_incident(self, incident: dict) -> str:
+        attack = incident.get("attack") or correlate_incident(incident)
+        return self._short_cell_text(attack.get("summary") or "None", 72)
+
+    def _xai_summary_for_result(self, item: dict) -> str:
+        xai = item.get("xai") or explain_scan_result(item)
+        parts = []
+        for contribution in xai.get("top_contributions", [])[:3]:
+            category = contribution.get("category", "signal")
+            points = contribution.get("points", "")
+            evidence = contribution.get("evidence", "")
+            parts.append(f"{category} +{points}: {evidence}")
+        if xai.get("counter_evidence"):
+            parts.append("Counter-evidence present")
+        return self._short_cell_text("; ".join(parts) or "No XAI contribution", 180)
+
+    def _xai_summary_for_incident(self, incident: dict) -> str:
+        xai = incident.get("xai") or explain_incident(incident)
+        parts = []
+        for contribution in xai.get("top_contributions", [])[:4]:
+            signal = contribution.get("signal", "signal")
+            value = contribution.get("value", "")
+            parts.append(f"{signal}={value}")
+        if xai.get("counter_evidence"):
+            parts.append("counter-evidence present")
+        return self._short_cell_text("; ".join(parts) or "No XAI contribution", 180)
+
+    def _short_cell_text(self, text: str, limit: int = 96) -> str:
+        cleaned = " ".join(str(text).split())
+        if len(cleaned) <= limit:
+            return cleaned
+        return f"{cleaned[: max(0, limit - 3)].rstrip()}..."
 
     def _refresh_forensics(self, history: list[dict]) -> None:
         if not self.forensic_tree:
@@ -944,6 +1079,9 @@ class NovaSentinelWindow(ctk.CTk):
         timeline = incident.get("timeline", [])
         evidence = incident.get("evidence", [])
         related_paths = incident.get("related_paths", [])
+        attack = incident.get("attack") or correlate_incident(incident)
+        xai = incident.get("xai") or explain_incident(incident)
+        graph = incident.get("incident_graph") or build_incident_graph({**incident, "attack": attack})
         lines = [
             f"Model: {incident.get('behavior_model', 'legacy')}",
             f"Score: {incident.get('behavior_score', 'n/a')}/100 | Confidence: {incident.get('confidence', 'n/a')} | Status: {incident.get('status', 'n/a')}",
@@ -951,8 +1089,31 @@ class NovaSentinelWindow(ctk.CTk):
             f"Recovery coverage: {signals.get('recovery_coverage_percent', 0)}% | Protected-root hits: {signals.get('protected_root_hits', 0)}",
             f"Tags: {', '.join(incident.get('tags', [])) or 'none'}",
             "",
-            "Timeline:",
+            f"MITRE ATT&CK: {attack.get('summary') or 'None'}",
         ]
+        for technique in attack.get("techniques", [])[:5]:
+            lines.append(
+                f"- {technique.get('technique_id')} {technique.get('name')} | confidence {technique.get('confidence')} | {', '.join(technique.get('tactics', []))}"
+            )
+        lines.extend(
+            [
+                "",
+                f"XAI: {self._xai_summary_for_incident(incident)}",
+            ]
+        )
+        counter_evidence = xai.get("counter_evidence", []) or []
+        if counter_evidence:
+            lines.append("Counter-evidence:")
+            lines.extend(f"- {item.get('signal', '')}: {item.get('explanation', '')}" for item in counter_evidence[:4])
+        lines.extend(
+            [
+                "",
+                f"Incident graph: {len(graph.get('nodes', []))} node(s), {len(graph.get('edges', []))} edge(s)",
+            ]
+        )
+        for edge in graph.get("edges", [])[:8]:
+            lines.append(f"- {edge.get('source', '')} -> {edge.get('target', '')} [{edge.get('relation', '')}]")
+        lines.extend(["", "Timeline:"])
         lines.extend(f"- {step.get('time', '')} [{step.get('step', '')}] {step.get('detail', '')}" for step in timeline[:6])
         lines.append("")
         lines.append("Evidence:")
@@ -992,6 +1153,32 @@ class NovaSentinelWindow(ctk.CTk):
                         Path(threat.get("path", "")).name,
                         "Post-alert process/memory context",
                         self._post_alert_evidence(post_alert),
+                        threat.get("action_taken", "none"),
+                    )
+                )
+            attack_summary = self._attack_summary_for_result(threat)
+            if attack_summary and attack_summary != "None":
+                rows.append(
+                    (
+                        threat.get("scanned_at", ""),
+                        str(threat.get("severity", "")).upper(),
+                        str(threat.get("score", "")),
+                        Path(threat.get("path", "")).name,
+                        "MITRE ATT&CK correlation",
+                        attack_summary,
+                        threat.get("action_taken", "none"),
+                    )
+                )
+            xai_summary = self._xai_summary_for_result(threat)
+            if xai_summary and xai_summary != "No XAI contribution":
+                rows.append(
+                    (
+                        threat.get("scanned_at", ""),
+                        str(threat.get("severity", "")).upper(),
+                        str(threat.get("score", "")),
+                        Path(threat.get("path", "")).name,
+                        "XAI explanation",
+                        xai_summary,
                         threat.get("action_taken", "none"),
                     )
                 )

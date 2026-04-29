@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from novaguard.attack import correlate_scan_result, explain_scan_result
 from novaguard.bootstrap import ensure_bootstrap
 from novaguard.config import EVENTS_FILE, HISTORY_FILE, load_json_list, load_settings, save_json_list, save_settings
 from novaguard.core.post_alert import collect_post_alert_context
@@ -135,6 +136,10 @@ class NovaSentinelEngine:
         self.ransomware_guard.manual_panic()
 
     def record_result(self, result: ScanResult) -> None:
+        if result.attack is None:
+            result.attack = correlate_scan_result(result)
+        if result.xai is None:
+            result.xai = explain_scan_result(result)
         self._enrich_post_alert(result, "result")
         item = result.to_dict()
         self.history.append(item)
