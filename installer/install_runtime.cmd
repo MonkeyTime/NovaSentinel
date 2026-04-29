@@ -24,19 +24,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$programs = [Environment]::GetFolderPath('Programs'); " ^
   "$desktop = [Environment]::GetFolderPath('Desktop'); " ^
   "$targets = @(" ^
-  "@{Path=(Join-Path $startup 'NovaSentinel.lnk'); Description='Launch NovaSentinel at sign-in'}," ^
-  "@{Path=(Join-Path $programs 'NovaSentinel.lnk'); Description='Open NovaSentinel'}," ^
-  "@{Path=(Join-Path $desktop 'NovaSentinel.lnk'); Description='Open NovaSentinel'}" ^
+  "@{Path=(Join-Path $startup 'NovaSentinel.lnk'); Description='Launch NovaSentinel at sign-in'; Arguments='--background'}," ^
+  "@{Path=(Join-Path $programs 'NovaSentinel.lnk'); Description='Open NovaSentinel'; Arguments=''}," ^
+  "@{Path=(Join-Path $desktop 'NovaSentinel.lnk'); Description='Open NovaSentinel'; Arguments=''}" ^
   "); " ^
   "foreach ($item in $targets) { " ^
   "  $shortcut = $shell.CreateShortcut($item.Path); " ^
   "  $shortcut.TargetPath = Join-Path '%DEST%' 'NovaSentinel.exe'; " ^
+  "  $shortcut.Arguments = $item.Arguments; " ^
   "  $shortcut.WorkingDirectory = '%DEST%'; " ^
   "  $shortcut.IconLocation = Join-Path '%DEST%' 'NovaSentinel.exe'; " ^
   "  $shortcut.Description = $item.Description; " ^
   "  $shortcut.Save(); " ^
   "} "
 if errorlevel 1 goto :fail
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$action = New-ScheduledTaskAction -Execute (Join-Path '%DEST%' 'NovaSentinel.exe') -Argument '--background'; " ^
+  "$trigger = New-ScheduledTaskTrigger -AtLogOn; " ^
+  "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name; " ^
+  "$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest; " ^
+  "$settings = New-ScheduledTaskSettingsSet; " ^
+  "Register-ScheduledTask -TaskName '%APP_NAME%' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null" >nul 2>nul
+if not errorlevel 1 (
+  del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\NovaSentinel.lnk" >nul 2>nul
+)
 
 start "" "%DEST%\NovaSentinel.exe"
 

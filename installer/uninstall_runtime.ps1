@@ -9,6 +9,7 @@ $ProgramsShortcut = Join-Path ([Environment]::GetFolderPath("Programs")) "NovaSe
 $DesktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "NovaSentinel.lnk"
 
 Get-Process NovaSentinel -ErrorAction SilentlyContinue | Stop-Process -Force
+Unregister-ScheduledTask -TaskName "NovaSentinel" -Confirm:$false
 
 Remove-Item $StartupShortcut -Force
 Remove-Item $ProgramsShortcut -Force

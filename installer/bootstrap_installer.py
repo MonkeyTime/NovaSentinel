@@ -13,6 +13,7 @@ import ctypes
 
 
 APP_NAME = "NovaSentinel"
+STARTUP_TASK_NAME = APP_NAME
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 SUPPORTED_LANGUAGES = [
     ("fr", "Francais"),
@@ -185,8 +186,55 @@ def stop_running_app() -> None:
     )
 
 
+def startup_shortcut_path() -> Path:
+    return (
+        Path(os.getenv("APPDATA", ""))
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / "Startup"
+        / "NovaSentinel.lnk"
+    )
+
+
+def remove_startup_shortcut() -> None:
+    try:
+        startup_shortcut_path().unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def create_startup_task(install_dir: Path) -> bool:
+    exe_path = install_dir / "NovaSentinel.exe"
+    action = f'"{exe_path}" --background'
+    try:
+        result = subprocess.run(
+            [
+                "schtasks",
+                "/Create",
+                "/TN",
+                STARTUP_TASK_NAME,
+                "/SC",
+                "ONLOGON",
+                "/RL",
+                "HIGHEST",
+                "/TR",
+                action,
+                "/F",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            **no_window_kwargs(),
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
 def create_shortcuts(install_dir: Path) -> None:
-    startup = Path(os.getenv("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    startup = startup_shortcut_path().parent
     programs = Path(os.getenv("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
     desktop = Path.home() / "Desktop"
     icon_path = install_dir / "novasentinel_icon.ico"
@@ -247,6 +295,8 @@ def install() -> int:
 
     shutil.copy2(uninstall_script, install_dir / "uninstall_runtime.ps1")
     create_shortcuts(install_dir)
+    if create_startup_task(install_dir):
+        remove_startup_shortcut()
     write_language_preference(language)
 
     exe_path = install_dir / "NovaSentinel.exe"
