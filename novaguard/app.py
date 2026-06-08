@@ -62,6 +62,7 @@ def main() -> None:
     app = NovaSentinelWindow(engine)
     if start_in_background:
         app.withdraw()
+    engine.set_system_quarantine_decision_callback(app.request_system_quarantine_decision)
 
     def toggle_realtime() -> None:
         settings = engine.get_snapshot()["settings"]

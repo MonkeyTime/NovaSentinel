@@ -6,6 +6,7 @@ from datetime import datetime
 
 
 SERVICE_TIMEOUT_SECONDS = 1.5
+NO_WINDOW_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def collect_telemetry_status() -> dict:
@@ -61,6 +62,7 @@ def _query_service(name: str) -> dict:
             text=True,
             timeout=SERVICE_TIMEOUT_SECONDS,
             check=False,
+            creationflags=NO_WINDOW_FLAGS,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {

@@ -7,6 +7,8 @@ from pathlib import Path
 import novaguard.core.engine as engine_module
 from novaguard.core.engine import UNKNOWN_SCAN_PROGRESS_FRACTION
 from novaguard.core.engine import NovaSentinelEngine
+import novaguard.core.quarantine as quarantine_module
+from novaguard.core.quarantine import QuarantineManager, calculate_file_sha256
 from novaguard.models import AppSettings, DetectionHit, ScanResult
 
 
@@ -224,3 +226,62 @@ def test_full_scan_starts_streaming_without_full_discovery(monkeypatch, tmp_path
     assert counters == [("Full scan", [str(first_root), str(second_root)], 1)]
     assert calls == [("scan_target", str(first_root)), ("scan_target", str(second_root))]
     assert engine.state["last_scan_summary"] == "Full scan completed: 2 files, 0 threats."
+
+
+def test_quarantine_manager_blocks_system_file_without_explicit_approval(monkeypatch, tmp_path):
+    system_root = tmp_path / "Windows"
+    quarantine_dir = tmp_path / "quarantine"
+    system_root.mkdir()
+    target = system_root / "system-tool.exe"
+    target.write_text("suspicious", encoding="utf-8")
+    monkeypatch.setenv("SystemRoot", str(system_root))
+    monkeypatch.setattr(quarantine_module, "QUARANTINE_DIR", quarantine_dir)
+    monkeypatch.setattr(quarantine_module, "SYSTEM_QUARANTINE_DECISIONS_FILE", tmp_path / "decisions.json")
+
+    manager = QuarantineManager()
+
+    assert manager.quarantine_file(str(target), "test", 99) is None
+    assert target.exists() is True
+
+    metadata = manager.quarantine_file(str(target), "test", 99, allow_system_file=True)
+
+    assert metadata is not None
+    assert target.exists() is False
+    assert metadata["sha256"] == calculate_file_sha256(quarantine_dir / f"{metadata['id']}.bin")
+
+
+def test_system_quarantine_decision_is_remembered_until_hash_changes(monkeypatch, tmp_path):
+    system_root = tmp_path / "Windows"
+    system_root.mkdir()
+    target = system_root / "driver-helper.exe"
+    target.write_text("version-one", encoding="utf-8")
+    monkeypatch.setenv("SystemRoot", str(system_root))
+    monkeypatch.setattr(quarantine_module, "QUARANTINE_DIR", tmp_path / "quarantine")
+    monkeypatch.setattr(quarantine_module, "SYSTEM_QUARANTINE_DECISIONS_FILE", tmp_path / "decisions.json")
+    monkeypatch.setattr(engine_module, "save_json_list", lambda path, items: None)
+
+    engine = _engine_without_services()
+    engine.quarantine = QuarantineManager()
+    decisions = [False, True]
+    prompts: list[str] = []
+
+    def decide(payload: dict) -> bool:
+        prompts.append(payload["sha256"])
+        return decisions.pop(0)
+
+    engine.set_system_quarantine_decision_callback(decide)
+
+    assert engine._quarantine_file(str(target), "manual_scan", 99) is None
+    assert target.exists() is True
+    assert len(prompts) == 1
+
+    assert engine._quarantine_file(str(target), "manual_scan", 99) is None
+    assert target.exists() is True
+    assert len(prompts) == 1
+
+    target.write_text("version-two", encoding="utf-8")
+    metadata = engine._quarantine_file(str(target), "manual_scan", 99)
+
+    assert metadata is not None
+    assert target.exists() is False
+    assert len(prompts) == 2

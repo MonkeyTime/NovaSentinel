@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
+import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -10,6 +12,7 @@ import customtkinter as ctk
 from novaguard import APP_NAME, APP_VERSION
 from novaguard.attack import build_incident_graph, correlate_incident, correlate_scan_result, explain_incident, explain_scan_result
 from novaguard.bootstrap import ensure_icon_assets
+from novaguard.core.updater import UpdateInfo, download_update_installer, fetch_latest_update, launch_update_installer
 from novaguard.i18n import LANGUAGES, normalize_language, tr, trust_center_summary
 from novaguard.models import AppSettings
 from novaguard.research import research_summary
@@ -57,6 +60,12 @@ class NovaSentinelWindow(ctk.CTk):
         self.language_var = tk.StringVar(value=LANGUAGES[self.language])
         self.language_by_label = {label: code for code, label in LANGUAGES.items()}
 
+        self.update_info: UpdateInfo | None = None
+        self.update_button: ctk.CTkButton | None = None
+        self.first_nav_button: ctk.CTkButton | None = None
+        self.update_check_in_progress = False
+        self.update_install_in_progress = False
+        self.update_notified_tag = ""
         self.target_entry: ctk.CTkEntry | None = None
         self.progress_bar: ctk.CTkProgressBar | None = None
         self.scan_action_buttons: list[ctk.CTkButton] = []
@@ -96,6 +105,7 @@ class NovaSentinelWindow(ctk.CTk):
         self._build_views()
         self.show_view("Dashboard")
         self.after(1200, self.refresh_view)
+        self.after(3500, self.check_for_updates)
 
     def _apply_window_icon(self) -> None:
         png_path, ico_path = ensure_icon_assets()
@@ -119,6 +129,13 @@ class NovaSentinelWindow(ctk.CTk):
             justify="left",
         )
         subtitle.pack(padx=24, pady=(0, 18), anchor="w")
+        self.update_button = ctk.CTkButton(
+            self.sidebar,
+            text=self.t("update.button", version=self.update_info.version if self.update_info else ""),
+            fg_color="#28735f",
+            hover_color="#1f5c4d",
+            command=self.start_update,
+        )
         for name, text_key in [
             ("Dashboard", "nav.dashboard"),
             ("Scan Center", "nav.scan"),
@@ -130,14 +147,18 @@ class NovaSentinelWindow(ctk.CTk):
             ("Trust Center", "nav.trust"),
             ("Research", "nav.research"),
         ]:
-            ctk.CTkButton(
+            nav_button = ctk.CTkButton(
                 self.sidebar,
                 text=self.t(text_key),
                 anchor="w",
                 fg_color="transparent",
                 hover_color="#1f3c35",
                 command=lambda value=name: self.show_view(value),
-            ).pack(fill="x", padx=18, pady=6)
+            )
+            nav_button.pack(fill="x", padx=18, pady=6)
+            if self.first_nav_button is None:
+                self.first_nav_button = nav_button
+        self._refresh_update_button()
         status_box = ctk.CTkFrame(self.sidebar, fg_color="#102a25")
         status_box.pack(side="bottom", fill="x", padx=18, pady=18)
         ctk.CTkLabel(status_box, text=self.t("background_status"), font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=14, pady=(14, 4))
@@ -519,6 +540,8 @@ class NovaSentinelWindow(ctk.CTk):
         self.content.grid_columnconfigure(0, weight=1)
 
         self.frames = {}
+        self.update_button = None
+        self.first_nav_button = None
         self.target_entry = None
         self.progress_bar = None
         self.scan_action_buttons = []
@@ -647,6 +670,136 @@ class NovaSentinelWindow(ctk.CTk):
 
     def set_notifier(self, notifier) -> None:
         self.notifier = notifier
+
+    def check_for_updates(self) -> None:
+        if self.update_check_in_progress or self.update_install_in_progress:
+            return
+        self.update_check_in_progress = True
+        thread = threading.Thread(target=self._check_for_updates_worker, name="NovaSentinelUpdateCheck", daemon=True)
+        thread.start()
+
+    def _check_for_updates_worker(self) -> None:
+        try:
+            update = fetch_latest_update(APP_VERSION)
+        except Exception:
+            update = None
+        self.after(0, lambda: self._finish_update_check(update))
+
+    def _finish_update_check(self, update: UpdateInfo | None) -> None:
+        self.update_check_in_progress = False
+        self.update_info = update
+        self._refresh_update_button()
+        if update and update.tag != self.update_notified_tag:
+            self.update_notified_tag = update.tag
+            if self.notifier:
+                self.notifier(
+                    self.t("notify.update_available"),
+                    self.t("notify.update_available_body", version=update.version),
+                )
+
+    def _refresh_update_button(self) -> None:
+        if not self.update_button:
+            return
+        if not self.update_info:
+            self.update_button.pack_forget()
+            return
+        self.update_button.configure(
+            text=self.t("update.button", version=self.update_info.version),
+            state="disabled" if self.update_install_in_progress else "normal",
+        )
+        if self.update_button.winfo_manager():
+            return
+        pack_options = {"fill": "x", "padx": 18, "pady": (0, 12)}
+        if self.first_nav_button:
+            self.update_button.pack(before=self.first_nav_button, **pack_options)
+        else:
+            self.update_button.pack(**pack_options)
+
+    def start_update(self) -> None:
+        if not self.update_info or self.update_install_in_progress:
+            return
+        update = self.update_info
+        approved = messagebox.askyesno(
+            self.t("update.confirm_title"),
+            self.t("update.confirm_body", version=update.version, file=update.asset_name),
+            parent=self,
+        )
+        if not approved:
+            return
+        self.update_install_in_progress = True
+        if self.update_button:
+            self.update_button.configure(text=self.t("update.downloading"), state="disabled")
+        thread = threading.Thread(target=self._install_update_worker, args=(update,), name="NovaSentinelUpdateInstall", daemon=True)
+        thread.start()
+
+    def _install_update_worker(self, update: UpdateInfo) -> None:
+        try:
+            installer_path = download_update_installer(update)
+        except Exception as exc:
+            error = str(exc)
+            self.after(0, lambda error=error: self._handle_update_error(error))
+            return
+        self.after(0, lambda: self._launch_update(installer_path))
+
+    def _handle_update_error(self, error: str) -> None:
+        self.update_install_in_progress = False
+        self._refresh_update_button()
+        messagebox.showwarning(self.t("update.error_title"), self.t("update.error_body", error=error), parent=self)
+
+    def _launch_update(self, installer_path: Path) -> None:
+        if self.update_button:
+            self.update_button.configure(text=self.t("update.launching"), state="disabled")
+        try:
+            launch_update_installer(installer_path)
+        except Exception as exc:
+            self._handle_update_error(str(exc))
+            return
+        try:
+            self.engine.stop_background_services()
+        finally:
+            self.destroy()
+            os._exit(0)
+
+    def request_system_quarantine_decision(self, payload: dict) -> bool:
+        if threading.current_thread() is threading.main_thread():
+            return self._ask_system_quarantine_decision(payload)
+        completed = threading.Event()
+        result = {"approved": False}
+
+        def _ask() -> None:
+            result["approved"] = self._ask_system_quarantine_decision(payload)
+            completed.set()
+
+        self.after(0, _ask)
+        completed.wait()
+        return bool(result["approved"])
+
+    def _ask_system_quarantine_decision(self, payload: dict) -> bool:
+        path = str(payload.get("path", ""))
+        score = payload.get("score", "")
+        sha256 = str(payload.get("sha256", ""))
+        try:
+            if self.state() in {"withdrawn", "iconic"}:
+                self.show_from_tray()
+        except tk.TclError:
+            pass
+        approved = messagebox.askyesno(
+            self.t("quarantine.system.confirm_title"),
+            self.t(
+                "quarantine.system.confirm_body",
+                file=Path(path).name or path,
+                score=score,
+                hash=sha256[:12] or "unknown",
+                path=path,
+            ),
+            parent=self,
+        )
+        title_key = "notify.system_quarantine_approved" if approved else "notify.system_quarantine_refused"
+        body_key = "notify.system_quarantine_approved_body" if approved else "notify.system_quarantine_refused_body"
+        message = self.t(body_key, file=Path(path).name or path)
+        if self.notifier:
+            self.notifier(self.t(title_key), message)
+        return approved
 
     def set_language_change_callback(self, callback) -> None:
         self.language_change_callback = callback

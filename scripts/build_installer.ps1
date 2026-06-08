@@ -41,7 +41,7 @@ Class=IEXPRESS
 SEDVersion=3
 [Options]
 PackagePurpose=InstallApp
-ShowInstallProgramWindow=1
+ShowInstallProgramWindow=0
 HideExtractAnimation=0
 UseLongFileName=1
 InsideCompressed=0
@@ -73,11 +73,17 @@ FILE2=uninstall_runtime.ps1
 
 Set-Content -LiteralPath $SedPath -Value $sed -Encoding ASCII
 
-& "$env:SystemRoot\System32\iexpress.exe" /N $SedPath
+$iexpress = Start-Process `
+    -FilePath "$env:SystemRoot\System32\iexpress.exe" `
+    -ArgumentList @("/N", $SedPath) `
+    -Wait `
+    -PassThru `
+    -WindowStyle Hidden
+$iexpressExitCode = $iexpress.ExitCode
 $installerBuilt = Test-Path $TargetInstaller
 
 if (-not $installerBuilt) {
-    throw "Installer was not created."
+    throw "Installer was not created. IExpress exit code: $iexpressExitCode"
 }
 
 Write-Host "Installer created at $TargetInstaller"

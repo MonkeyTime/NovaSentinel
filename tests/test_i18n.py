@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import novaguard.config as config
-from novaguard.i18n import LANGUAGES, tr
+from novaguard.i18n import LANGUAGES, TRANSLATIONS, tr
 from novaguard.models import AppSettings
 
 
@@ -14,6 +14,13 @@ def test_core_ui_translations_exist_for_supported_languages():
         assert tr(language, "settings.language")
         assert tr(language, "scan.quick")
         assert tr(language, "tray.open")
+
+
+def test_supported_languages_cover_all_default_keys():
+    expected_keys = set(TRANSLATIONS["en"])
+
+    for language in LANGUAGES:
+        assert set(TRANSLATIONS[language]) == expected_keys
 
 
 def test_language_setting_is_persisted(tmp_path: Path, monkeypatch):
