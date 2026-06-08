@@ -39,6 +39,13 @@ def test_cmd_installer_starts_login_shortcut_in_background():
     assert "Register-ScheduledTask -TaskName '%APP_NAME%'" in script
 
 
+def test_iexpress_hides_internal_cmd_window():
+    build_script = Path(__file__).resolve().parents[1] / "scripts" / "build_installer.ps1"
+    script = build_script.read_text(encoding="utf-8")
+
+    assert "ShowInstallProgramWindow=0" in script
+
+
 def test_bootstrap_installer_registers_background_startup_task(monkeypatch, tmp_path: Path):
     calls = []
 

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from novaguard.core.telemetry import _parse_sc_query
+import subprocess
+
+import novaguard.core.telemetry as telemetry_module
+from novaguard.core.telemetry import _parse_sc_query, _query_service
 
 
 def test_parse_sc_query_running_service():
@@ -25,3 +28,18 @@ def test_parse_sc_query_missing_service():
     assert status["installed"] is False
     assert status["running"] is False
     assert status["state"] == "not_installed"
+
+
+def test_service_query_uses_no_window_flag(monkeypatch):
+    calls = []
+    monkeypatch.setattr(telemetry_module, "NO_WINDOW_FLAGS", 0x08000000)
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(telemetry_module.subprocess, "run", fake_run)
+
+    _query_service("WinDefend")
+
+    assert calls[0][1]["creationflags"] == 0x08000000

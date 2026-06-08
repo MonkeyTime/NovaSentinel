@@ -18,6 +18,7 @@ GITHUB_RELEASE_API_URL = "https://api.github.com/repos/MonkeyTime/NovaSentinel/r
 EXPECTED_ASSET_TEMPLATE = "NovaSentinel-Setup-{version}.exe"
 MAX_INSTALLER_BYTES = 250 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 10
+NO_WINDOW_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 class UpdateError(RuntimeError):
@@ -147,7 +148,7 @@ def launch_update_installer(installer_path: Path) -> None:
         ],
         close_fds=True,
         cwd=str(installer_path.parent),
-        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+        creationflags=NO_WINDOW_FLAGS | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
     )
 
 
@@ -169,7 +170,7 @@ Get-Process -Id $AppPid -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 800
 
 if (Test-Path -LiteralPath $Uninstaller) {{
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Uninstaller -KeepData
+    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $Uninstaller, "-KeepData") -Wait -WindowStyle Hidden
     Start-Sleep -Milliseconds 800
 }}
 
