@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -647,6 +648,47 @@ class NovaSentinelWindow(ctk.CTk):
 
     def set_notifier(self, notifier) -> None:
         self.notifier = notifier
+
+    def request_system_quarantine_decision(self, payload: dict) -> bool:
+        if threading.current_thread() is threading.main_thread():
+            return self._ask_system_quarantine_decision(payload)
+        completed = threading.Event()
+        result = {"approved": False}
+
+        def _ask() -> None:
+            result["approved"] = self._ask_system_quarantine_decision(payload)
+            completed.set()
+
+        self.after(0, _ask)
+        completed.wait()
+        return bool(result["approved"])
+
+    def _ask_system_quarantine_decision(self, payload: dict) -> bool:
+        path = str(payload.get("path", ""))
+        score = payload.get("score", "")
+        sha256 = str(payload.get("sha256", ""))
+        try:
+            if self.state() in {"withdrawn", "iconic"}:
+                self.show_from_tray()
+        except tk.TclError:
+            pass
+        approved = messagebox.askyesno(
+            self.t("quarantine.system.confirm_title"),
+            self.t(
+                "quarantine.system.confirm_body",
+                file=Path(path).name or path,
+                score=score,
+                hash=sha256[:12] or "unknown",
+                path=path,
+            ),
+            parent=self,
+        )
+        title_key = "notify.system_quarantine_approved" if approved else "notify.system_quarantine_refused"
+        body_key = "notify.system_quarantine_approved_body" if approved else "notify.system_quarantine_refused_body"
+        message = self.t(body_key, file=Path(path).name or path)
+        if self.notifier:
+            self.notifier(self.t(title_key), message)
+        return approved
 
     def set_language_change_callback(self, callback) -> None:
         self.language_change_callback = callback

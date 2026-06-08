@@ -26,6 +26,7 @@ RUNTIME_STATE_BASE_FILENAMES = {
     "history.json",
     "events.json",
     "incidents.json",
+    "system_quarantine_decisions.json",
     "lockdown_state.json",
 }
 

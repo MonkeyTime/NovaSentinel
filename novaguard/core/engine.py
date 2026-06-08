@@ -4,6 +4,7 @@ import ctypes
 import string
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -12,7 +13,13 @@ from novaguard.bootstrap import ensure_bootstrap
 from novaguard.config import EVENTS_FILE, HISTORY_FILE, load_json_list, load_settings, save_json_list, save_settings
 from novaguard.core.post_alert import collect_post_alert_context
 from novaguard.core.process_guard import ProcessGuard
-from novaguard.core.quarantine import QuarantineManager
+from novaguard.core.quarantine import (
+    SYSTEM_DECISION_ALLOW,
+    SYSTEM_DECISION_DENY,
+    QuarantineManager,
+    calculate_file_sha256,
+    is_system_managed_path,
+)
 from novaguard.core.ransomware_guard import RansomwareGuard
 from novaguard.core.realtime import RealtimeProtector
 from novaguard.core.scanner import Scanner, iter_files
@@ -31,6 +38,7 @@ class NovaSentinelEngine:
         self.settings: AppSettings = load_settings()
         self.scanner = Scanner(self.settings)
         self.quarantine = QuarantineManager()
+        self.system_quarantine_decision_callback: Callable[[dict], bool] | None = None
         self.history: list[dict] = load_json_list(HISTORY_FILE)
         self.events: list[dict] = load_json_list(EVENTS_FILE)
         self.current_scan_threats: list[dict] = []
@@ -61,7 +69,7 @@ class NovaSentinelEngine:
             settings=self.settings,
             on_event=self.record_event,
             on_result=self.record_result,
-            quarantine_callback=self.quarantine.quarantine_file,
+            quarantine_callback=self._quarantine_file,
         )
         self.ransomware_guard = RansomwareGuard(
             settings=self.settings,
@@ -72,7 +80,7 @@ class NovaSentinelEngine:
             settings=self.settings,
             on_event=self.record_event,
             on_result=self.record_result,
-            quarantine_callback=self.quarantine.quarantine_file,
+            quarantine_callback=self._quarantine_file,
             ransomware_guard=self.ransomware_guard,
         )
 
@@ -91,6 +99,9 @@ class NovaSentinelEngine:
     def stop_background_services(self) -> None:
         self.realtime.stop()
         self.process_guard.stop()
+
+    def set_system_quarantine_decision_callback(self, callback: Callable[[dict], bool] | None) -> None:
+        self.system_quarantine_decision_callback = callback
 
     def refresh_runtime(self) -> None:
         self.settings = load_settings()
@@ -194,8 +205,17 @@ class NovaSentinelEngine:
         if not Path(path).exists():
             self._update_current_threat_action(path, "missing")
             return False, "The file is no longer present on disk."
-        metadata = self.quarantine.quarantine_file(path, "manual_review", int(threat.get("score", 0)))
+        metadata = self._quarantine_file(
+            path,
+            "manual_review",
+            int(threat.get("score", 0)),
+            sha256=str(threat.get("sha256", "")),
+        )
         if not metadata:
+            if self._was_system_quarantine_denied(path, str(threat.get("sha256", ""))):
+                self._update_current_threat_action(path, "quarantine_refused")
+                self._update_history_action(path, "quarantine_refused")
+                return False, "System file quarantine was refused."
             return False, "Unable to quarantine this file."
         self._update_current_threat_action(path, "quarantined")
         self._update_history_action(path, "quarantined")
@@ -403,7 +423,7 @@ class NovaSentinelEngine:
     def _quarantine_scan_results(self, results: list[ScanResult]) -> None:
         for result in results:
             if result.malicious and self.settings.automatic_quarantine and Path(result.path).exists():
-                metadata = self.quarantine.quarantine_file(result.path, "manual_scan", result.score)
+                metadata = self._quarantine_file(result.path, "manual_scan", result.score, sha256=result.sha256)
                 if metadata:
                     result.action_taken = "quarantined"
                     self._update_current_threat_action(result.path, "quarantined")
@@ -417,6 +437,84 @@ class NovaSentinelEngine:
                             path=result.path,
                         )
                     )
+                elif self._was_system_quarantine_denied(result.path, result.sha256):
+                    result.action_taken = "quarantine_refused"
+                    self._update_current_threat_action(result.path, "quarantine_refused")
+                    self._update_history_action(result.path, "quarantine_refused")
+
+    def _quarantine_file(self, path: str, reason: str, score: int, sha256: str = "") -> dict | None:
+        target = Path(path)
+        if not target.exists() or target.is_dir():
+            return None
+        if not sha256:
+            try:
+                sha256 = calculate_file_sha256(target)
+            except OSError:
+                sha256 = ""
+        allow_system_file = False
+        if is_system_managed_path(target):
+            decision = self.quarantine.remembered_system_decision(path, sha256)
+            if decision is None:
+                approved = self._request_system_quarantine_decision(path, reason, score, sha256)
+                decision = SYSTEM_DECISION_ALLOW if approved else SYSTEM_DECISION_DENY
+                self.quarantine.remember_system_decision(path, sha256, decision)
+                self.record_event(
+                    EventRecord(
+                        timestamp=datetime.now().isoformat(timespec="seconds"),
+                        level="warning" if approved else "info",
+                        title="System file quarantine approved" if approved else "System file quarantine refused",
+                        description=(
+                            f"User approved quarantine for {target.name}."
+                            if approved
+                            else f"User refused quarantine for {target.name}; this exact hash will not be proposed again."
+                        ),
+                        path=path,
+                    )
+                )
+            if decision == SYSTEM_DECISION_DENY:
+                return None
+            allow_system_file = True
+        return self.quarantine.quarantine_file(
+            path,
+            reason,
+            score,
+            allow_system_file=allow_system_file,
+            sha256=sha256,
+        )
+
+    def _request_system_quarantine_decision(self, path: str, reason: str, score: int, sha256: str) -> bool:
+        callback = getattr(self, "system_quarantine_decision_callback", None)
+        if callback is None:
+            self.record_event(
+                EventRecord(
+                    timestamp=datetime.now().isoformat(timespec="seconds"),
+                    level="warning",
+                    title="System file quarantine skipped",
+                    description=f"{Path(path).name} requires confirmation before quarantine.",
+                    path=path,
+                )
+            )
+            return False
+        return bool(
+            callback(
+                {
+                    "path": path,
+                    "reason": reason,
+                    "score": score,
+                    "sha256": sha256,
+                }
+            )
+        )
+
+    def _was_system_quarantine_denied(self, path: str, sha256: str) -> bool:
+        if not is_system_managed_path(path):
+            return False
+        if not sha256:
+            try:
+                sha256 = calculate_file_sha256(path)
+            except OSError:
+                return False
+        return self.quarantine.remembered_system_decision(path, sha256) == SYSTEM_DECISION_DENY
 
     def _known_total_progress_callback(self, label: str, total_files: int):
         def _callback(current_path: str, file_index: int, _total_files: int) -> None:

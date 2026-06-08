@@ -2,12 +2,12 @@ from __future__ import annotations
 
 LANGUAGES = {
     "en": "English",
-    "fr": "Francais",
-    "es": "Espanol",
+    "fr": "Français",
+    "es": "Español",
     "ar": "العربية",
     "de": "Deutsch",
     "it": "Italiano",
-    "pt": "Portugues",
+    "pt": "Português",
 }
 
 DEFAULT_LANGUAGE = "en"
@@ -63,6 +63,13 @@ TRANSLATIONS = {
         "quarantine.title": "Quarantine",
         "quarantine.restore": "Restore selected",
         "quarantine.delete": "Delete selected",
+        "quarantine.system.confirm_title": "Confirm system file quarantine?",
+        "quarantine.system.confirm_body": (
+            "NovaSentinel wants to quarantine a system-managed file:\n\n"
+            "{file}\nScore: {score}/100\nSHA-256: {hash}...\n\n"
+            "Path: {path}\n\n"
+            "Your choice will be remembered for this exact file hash. If the file changes, NovaSentinel will ask again."
+        ),
         "events.title": "Security events",
         "settings.title": "Settings",
         "settings.language": "Language",
@@ -113,6 +120,10 @@ TRANSLATIONS = {
         "notify.completed": "Scan completed",
         "notify.interrupted": "Scan interrupted",
         "notify.stopped": "Scan stopped",
+        "notify.system_quarantine_approved": "System quarantine approved",
+        "notify.system_quarantine_approved_body": "{file} was approved for quarantine.",
+        "notify.system_quarantine_refused": "System quarantine refused",
+        "notify.system_quarantine_refused_body": "{file} was left in place and this hash will not be proposed again.",
         "summary.completed": "{label} completed: {scanned} files, {found} threats.",
         "summary.stopped": "{label} stopped: {scanned} files, {found} threats.",
         "summary.failed": "{label} failed after {scanned} files: {reason}",
@@ -184,6 +195,13 @@ TRANSLATIONS = {
         "quarantine.title": "Quarantaine",
         "quarantine.restore": "Restaurer la selection",
         "quarantine.delete": "Supprimer la selection",
+        "quarantine.system.confirm_title": "Confirmer la quarantaine d'un fichier systeme ?",
+        "quarantine.system.confirm_body": (
+            "NovaSentinel veut mettre en quarantaine un fichier gere par le systeme :\n\n"
+            "{file}\nScore : {score}/100\nSHA-256 : {hash}...\n\n"
+            "Chemin : {path}\n\n"
+            "Votre choix sera memorise pour ce hash exact. Si le fichier change, NovaSentinel redemandera."
+        ),
         "events.title": "Evenements de securite",
         "settings.title": "Parametres",
         "settings.language": "Langue",
@@ -210,6 +228,10 @@ TRANSLATIONS = {
         "notify.completed": "Analyse terminee",
         "notify.interrupted": "Analyse interrompue",
         "notify.stopped": "Analyse arretee",
+        "notify.system_quarantine_approved": "Quarantaine systeme confirmee",
+        "notify.system_quarantine_approved_body": "{file} a ete approuve pour la quarantaine.",
+        "notify.system_quarantine_refused": "Quarantaine systeme refusee",
+        "notify.system_quarantine_refused_body": "{file} est laisse en place et ce hash ne sera plus propose.",
         "summary.completed": "{label} terminee : {scanned} fichiers, {found} menaces.",
         "summary.stopped": "{label} arretee : {scanned} fichiers, {found} menaces.",
         "summary.failed": "{label} echouee apres {scanned} fichiers : {reason}",
@@ -367,6 +389,548 @@ TRANSLATIONS = {
         "tray.open": "Abrir NovaSentinel",
     },
 }
+
+_TRANSLATION_COMPLETIONS = {
+    "fr": {
+        "heading.time": "Heure",
+        "heading.severity": "Gravite",
+        "heading.score": "Score",
+        "heading.confidence": "Confiance",
+        "heading.tags": "Tags",
+        "heading.path": "Chemin",
+        "heading.action": "Action",
+        "heading.file": "Fichier",
+        "heading.detail": "Detail",
+        "heading.evidence": "Preuve",
+        "heading.status": "Etat",
+        "heading.id": "ID",
+        "heading.name": "Nom",
+        "heading.reason": "Raison",
+        "heading.level": "Niveau",
+        "heading.title": "Titre",
+        "heading.description": "Description",
+        "heading.files": "Fichiers",
+        "heading.processes": "Processus",
+        "heading.modules": "Modules",
+        "heading.connections": "Connexions",
+        "heading.recovery": "Recuperation",
+        "heading.timeline": "Chronologie",
+        "heading.trigger": "Declencheur",
+        "trust.summary": (
+            "NovaSentinel est positionne comme defense complementaire, explicable et user-space pour Windows 11.\n\n"
+            "Ce qu'il fait bien :\n"
+            "- Surveille les dossiers utilisateur a risque, les dossiers temporaires et les emplacements de demarrage.\n"
+            "- Score les scripts et fichiers PE suspects avec des preuves lisibles plutot qu'un verdict opaque.\n"
+            "- Detecte les rafales de modifications de documents et les changements de fichiers canaris.\n"
+            "- Declenche un confinement panique et consigne les incidents avec preuves, chronologie, fichiers touches et copies de recuperation.\n"
+            "- Conserve des fichiers d'etat JSON avec ecritures atomiques et sauvegardes pour limiter la corruption.\n\n"
+            "Ce qu'il ne pretend pas :\n"
+            "- Ce n'est pas un minifilter noyau, un EDR, un reseau de reputation cloud ni un remplacant de Microsoft Defender.\n"
+            "- Il ne garantit pas l'arret des malwares noyau, de l'abus d'outils signes ou d'un attaquant eleve.\n"
+            "- Le coffre de recuperation est une copie best-effort, pas un systeme de sauvegarde complet.\n\n"
+            "Mode d'exploitation recommande :\n"
+            "- L'utiliser avec la protection temps reel de Windows Security.\n"
+            "- Traiter les alertes comme des signaux de triage et de confinement explicables.\n"
+            "- Garder Windows, Defender, le navigateur et les sauvegardes a jour."
+        ),
+    },
+    "es": {
+        "card.realtime.title": "Tiempo real",
+        "card.realtime.body": "Vigila ubicaciones de riesgo del usuario sin reemplazar Microsoft Defender",
+        "card.ransomware.title": "Ransomware",
+        "card.ransomware.body": "Archivos canario, deteccion de rafagas y pruebas de recuperacion",
+        "card.trust.title": "Postura de confianza",
+        "card.trust.body": "Limites claros, pruebas legibles y archivos de estado recuperables",
+        "ransomware.body": "Contencion en espacio de usuario: pruebas de rafaga, alertas canario, copias de recuperacion y bloqueo de panico.",
+        "ransomware.panic.confirm_title": "Activar modo panico?",
+        "ransomware.panic.confirm_body": "El modo panico bloquea temporalmente las carpetas protegidas y vigila nuevos lanzamientos de riesgo. No cierra navegadores, herramientas de audio ni aplicaciones ya abiertas salvo que un incidente automatico de ransomware identifique un proceso de alto riesgo.",
+        "ransomware.panic.started": "Modo panico activo: las carpetas protegidas estan bloqueadas temporalmente.",
+        "forensics.title": "Forense",
+        "forensics.body": "Contexto de procesos y memoria capturado tras detecciones de alto riesgo. Es una instantanea limitada en espacio de usuario, no un volcado bruto de memoria.",
+        "forensics.detail": "Detalle forense",
+        "forensics.empty": "Aun no hay contexto post-alerta enriquecido disponible.",
+        "settings.realtime": "Proteccion de archivos en tiempo real",
+        "settings.process": "Puntuacion de lanzamiento de procesos",
+        "settings.ransomware": "Proteccion canario y rafagas",
+        "settings.auto_quarantine": "Cuarentena automatica",
+        "trust.telemetry.title": "Salud de telemetria",
+        "trust.telemetry.pending": "comprobando...",
+        "trust.telemetry.checked": "Ultima comprobacion",
+        "trust.telemetry.sysmon": "Servicio Sysmon",
+        "trust.telemetry.defender": "Servicio Microsoft Defender",
+        "trust.telemetry.security": "Servicio Seguridad de Windows",
+        "trust.telemetry.installed": "instalado",
+        "trust.telemetry.not_installed": "no instalado",
+        "trust.telemetry.note": "Esta es una comprobacion pasiva de visibilidad en espacio de usuario. No instala controladores ni cambia ajustes de seguridad de Windows.",
+        "quarantine.system.confirm_title": "Confirmar cuarentena de archivo del sistema?",
+        "quarantine.system.confirm_body": "NovaSentinel quiere poner en cuarentena un archivo gestionado por el sistema:\n\n{file}\nPuntuacion: {score}/100\nSHA-256: {hash}...\n\nRuta: {path}\n\nTu eleccion se recordara para este hash exacto. Si el archivo cambia, NovaSentinel preguntara de nuevo.",
+        "heading.time": "Hora",
+        "heading.severity": "Gravedad",
+        "heading.score": "Puntuacion",
+        "heading.attack": "ATT&CK",
+        "heading.confidence": "Confianza",
+        "heading.tags": "Etiquetas",
+        "heading.path": "Ruta",
+        "heading.action": "Accion",
+        "heading.file": "Archivo",
+        "heading.detail": "Detalle",
+        "heading.evidence": "Evidencia",
+        "heading.status": "Estado",
+        "heading.id": "ID",
+        "heading.name": "Nombre",
+        "heading.reason": "Motivo",
+        "heading.level": "Nivel",
+        "heading.title": "Titulo",
+        "heading.description": "Descripcion",
+        "heading.files": "Archivos",
+        "heading.processes": "Procesos",
+        "heading.modules": "Modulos",
+        "heading.connections": "Conexiones",
+        "heading.recovery": "Recuperacion",
+        "heading.timeline": "Linea de tiempo",
+        "heading.trigger": "Disparador",
+        "notify.system_quarantine_approved": "Cuarentena del sistema aprobada",
+        "notify.system_quarantine_approved_body": "{file} fue aprobado para cuarentena.",
+        "notify.system_quarantine_refused": "Cuarentena del sistema rechazada",
+        "notify.system_quarantine_refused_body": "{file} se deja en su lugar y este hash no se propondra de nuevo.",
+        "trust.summary": (
+            "NovaSentinel es una defensa complementaria, explicable y de espacio de usuario para Windows 11.\n\n"
+            "Lo que hace bien:\n"
+            "- Vigila carpetas de riesgo del usuario, temporales y ubicaciones de inicio.\n"
+            "- Puntua scripts y archivos PE sospechosos con evidencia legible.\n"
+            "- Detecta rafagas tipo ransomware y cambios en archivos canario.\n"
+            "- Activa contencion de panico y registra incidentes con pruebas, linea de tiempo, archivos afectados y copias de recuperacion.\n"
+            "- Mantiene estado JSON con escrituras atomicas y copias de respaldo.\n\n"
+            "Lo que no afirma:\n"
+            "- No es un minifiltro de kernel, EDR, red de reputacion cloud ni reemplazo de Microsoft Defender.\n"
+            "- No garantiza detener malware de kernel, abuso de herramientas firmadas o manipulacion por un atacante elevado.\n"
+            "- El almacen de recuperacion es best-effort, no un sistema completo de copias de seguridad.\n\n"
+            "Uso recomendado:\n"
+            "- Ejecutarlo junto a Windows Security.\n"
+            "- Tratar las alertas como senales explicables de triaje y contencion.\n"
+            "- Mantener Windows, Defender, navegador y copias de seguridad activos."
+        ),
+    },
+    "ar": {
+        "card.realtime.title": "الوقت الحقيقي",
+        "card.realtime.body": "يراقب مواقع المستخدم عالية المخاطر دون استبدال Microsoft Defender",
+        "card.ransomware.title": "برمجيات الفدية",
+        "card.ransomware.body": "ملفات كناري، كشف الدفعات، وأدلة الاسترداد",
+        "card.trust.title": "وضع الثقة",
+        "card.trust.body": "حدود واضحة، أدلة قابلة للقراءة، وملفات حالة قابلة للاسترداد",
+        "ransomware.body": "احتواء في مساحة المستخدم: أدلة الدفعات، تنبيهات الكناري، نسخ الاسترداد، وقفل الطوارئ.",
+        "ransomware.panic.confirm_title": "تفعيل وضع الطوارئ؟",
+        "ransomware.panic.confirm_body": "سيغلق وضع الطوارئ المجلدات المحمية مؤقتا ويراقب عمليات التشغيل الجديدة عالية المخاطر. لن يغلق المتصفحات أو أدوات الصوت أو التطبيقات المفتوحة إلا إذا حدد حادث فدية تلقائي عملية عالية الخطورة.",
+        "ransomware.panic.started": "وضع الطوارئ نشط: المجلدات المحمية مقفلة مؤقتا.",
+        "forensics.title": "التحليل الجنائي",
+        "forensics.body": "سياق العمليات والذاكرة الذي يتم جمعه بعد الاكتشافات عالية المخاطر. هذه لقطة محدودة في مساحة المستخدم وليست تفريغا خاما للذاكرة.",
+        "forensics.detail": "تفاصيل التحليل الجنائي",
+        "forensics.empty": "لا يوجد سياق غني بعد التنبيه حتى الآن.",
+        "settings.realtime": "حماية الملفات في الوقت الحقيقي",
+        "settings.process": "تقييم تشغيل العمليات",
+        "settings.ransomware": "حماية الكناري والدفعات",
+        "settings.auto_quarantine": "العزل التلقائي",
+        "trust.telemetry.title": "صحة القياسات",
+        "trust.telemetry.pending": "جار التحقق...",
+        "trust.telemetry.checked": "آخر تحقق",
+        "trust.telemetry.sysmon": "خدمة Sysmon",
+        "trust.telemetry.defender": "خدمة Microsoft Defender",
+        "trust.telemetry.security": "خدمة أمان Windows",
+        "trust.telemetry.installed": "مثبت",
+        "trust.telemetry.not_installed": "غير مثبت",
+        "trust.telemetry.note": "هذا فحص رؤية سلبي في مساحة المستخدم. لا يثبت برامج تشغيل ولا يغير إعدادات أمان Windows.",
+        "quarantine.system.confirm_title": "تأكيد عزل ملف نظام؟",
+        "quarantine.system.confirm_body": "يريد NovaSentinel عزل ملف يديره النظام:\n\n{file}\nالدرجة: {score}/100\nSHA-256: {hash}...\n\nالمسار: {path}\n\nسيتم تذكر اختيارك لهذا الهاش تحديدا. إذا تغير الملف فسيسأل NovaSentinel مرة أخرى.",
+        "heading.time": "الوقت",
+        "heading.severity": "الخطورة",
+        "heading.score": "الدرجة",
+        "heading.attack": "ATT&CK",
+        "heading.confidence": "الثقة",
+        "heading.tags": "الوسوم",
+        "heading.path": "المسار",
+        "heading.action": "الإجراء",
+        "heading.file": "الملف",
+        "heading.detail": "التفاصيل",
+        "heading.evidence": "الدليل",
+        "heading.status": "الحالة",
+        "heading.id": "المعرف",
+        "heading.name": "الاسم",
+        "heading.reason": "السبب",
+        "heading.level": "المستوى",
+        "heading.title": "العنوان",
+        "heading.description": "الوصف",
+        "heading.files": "الملفات",
+        "heading.processes": "العمليات",
+        "heading.modules": "الوحدات",
+        "heading.connections": "الاتصالات",
+        "heading.recovery": "الاسترداد",
+        "heading.timeline": "الخط الزمني",
+        "heading.trigger": "المشغل",
+        "notify.system_quarantine_approved": "تمت الموافقة على عزل ملف النظام",
+        "notify.system_quarantine_approved_body": "تمت الموافقة على عزل {file}.",
+        "notify.system_quarantine_refused": "تم رفض عزل ملف النظام",
+        "notify.system_quarantine_refused_body": "سيبقى {file} في مكانه ولن يتم اقتراح هذا الهاش مرة أخرى.",
+        "trust.summary": (
+            "NovaSentinel هو دفاع تكميلي قابل للتفسير في مساحة المستخدم لنظام Windows 11.\n\n"
+            "ما يفعله جيدا:\n"
+            "- يراقب مجلدات المستخدم عالية المخاطر والمجلدات المؤقتة ومواقع بدء التشغيل.\n"
+            "- يقيم السكربتات وملفات PE المشبوهة بأدلة قابلة للقراءة.\n"
+            "- يكتشف دفعات تعديل الملفات الشبيهة بالفدية وتغييرات ملفات الكناري.\n"
+            "- يفعل احتواء الطوارئ ويسجل الحوادث مع الأدلة والخط الزمني والملفات المتأثرة ونسخ الاسترداد.\n"
+            "- يحتفظ بملفات حالة JSON بكتابات ذرية ونسخ احتياطية.\n\n"
+            "ما لا يدعيه:\n"
+            "- ليس مرشحا في النواة أو EDR أو شبكة سمعة سحابية أو بديلا عن Microsoft Defender.\n"
+            "- لا يضمن إيقاف برمجيات النواة أو إساءة استخدام أدوات موقعة أو العبث بواسطة مهاجم بصلاحيات مرتفعة.\n"
+            "- خزنة الاسترداد نسخة بأفضل جهد وليست نظام نسخ احتياطي كاملا.\n\n"
+            "طريقة التشغيل الموصى بها:\n"
+            "- تشغيله مع حماية Windows Security في الوقت الحقيقي.\n"
+            "- اعتبار التنبيهات إشارات فرز واحتواء قابلة للتفسير.\n"
+            "- إبقاء Windows وDefender والمتصفح والنسخ الاحتياطية مفعلة."
+        ),
+    },
+    "de": {
+        "background_status": "Hintergrundstatus",
+        "status.active": "Schutz aktiv",
+        "status.paused": "Schutz pausiert",
+        "dashboard.title": "Verteidigungsstatus",
+        "dashboard.recent": "Aktuelle Erkennungen",
+        "card.realtime.title": "Echtzeit",
+        "card.realtime.body": "Ueberwacht riskante Benutzerorte, ohne Microsoft Defender zu ersetzen",
+        "card.ransomware.title": "Ransomware",
+        "card.ransomware.body": "Canary-Dateien, Burst-Erkennung und Wiederherstellungsnachweise",
+        "card.trust.title": "Vertrauensstatus",
+        "card.trust.body": "Klare Grenzen, lesbare Nachweise und wiederherstellbare Statusdateien",
+        "scan.title": "Scan-Zentrale",
+        "scan.full": "Vollscan",
+        "scan.custom": "Benutzerdefinierter Scan",
+        "scan.pick": "Ordner waehlen",
+        "scan.target": "Ziel scannen",
+        "scan.stop": "Scan stoppen",
+        "scan.stopping": "Stoppt...",
+        "scan.placeholder": "Benutzerdefinierter Ordner oder Datei",
+        "scan.progress": "Fortschritt",
+        "scan.threats": "Bedrohungen des aktuellen Scans",
+        "scan.threat_count": "{count} Bedrohung(en) unten detailliert",
+        "scan.counter": "{threats} Bedrohungen | {files} Dateien",
+        "scan.ready": "Bereit",
+        "scan.stopping_status": "Scan wird sicher gestoppt...",
+        "ransomware.title": "Ransomware-Vorfaelle",
+        "ransomware.body": "User-Space-Eindaemmung: Burst-Nachweise, Canary-Alarme, Wiederherstellungskopien und Panik-Sperre.",
+        "ransomware.panic": "Panikmodus",
+        "ransomware.panic.confirm_title": "Panikmodus aktivieren?",
+        "ransomware.panic.confirm_body": "Der Panikmodus sperrt geschuetzte Ordner voruebergehend und ueberwacht neue riskante Starts. Browser, Audiotools und laufende Apps bleiben offen, ausser ein automatischer Ransomware-Vorfall erkennt einen Hochrisikoprozess.",
+        "ransomware.panic.started": "Panikmodus aktiv: Geschuetzte Ordner sind voruebergehend gesperrt.",
+        "forensics.title": "Forensik",
+        "forensics.body": "Prozess- und Speicherkontext nach Hochrisiko-Erkennungen. Dies ist eine begrenzte User-Space-Momentaufnahme, kein roher Speicherabzug.",
+        "forensics.detail": "Forensisches Detail",
+        "forensics.empty": "Noch kein angereicherter Post-Alert-Kontext verfuegbar.",
+        "quarantine.title": "Quarantaene",
+        "quarantine.restore": "Auswahl wiederherstellen",
+        "quarantine.delete": "Auswahl loeschen",
+        "quarantine.system.confirm_title": "Quarantaene fuer Systemdatei bestaetigen?",
+        "quarantine.system.confirm_body": "NovaSentinel moechte eine systemverwaltete Datei in Quarantaene verschieben:\n\n{file}\nScore: {score}/100\nSHA-256: {hash}...\n\nPfad: {path}\n\nDeine Wahl wird fuer diesen exakten Hash gespeichert. Wenn sich die Datei aendert, fragt NovaSentinel erneut.",
+        "events.title": "Sicherheitsereignisse",
+        "settings.title": "Einstellungen",
+        "settings.realtime": "Echtzeit-Dateischutz",
+        "settings.process": "Prozessstart-Bewertung",
+        "settings.ransomware": "Canary- und Burst-Schutz",
+        "settings.auto_quarantine": "Automatische Quarantaene",
+        "trust.title": "Trust Center",
+        "trust.telemetry.title": "Telemetrie-Zustand",
+        "trust.telemetry.pending": "Pruefung...",
+        "trust.telemetry.checked": "Zuletzt geprueft",
+        "trust.telemetry.sysmon": "Sysmon-Dienst",
+        "trust.telemetry.defender": "Microsoft Defender-Dienst",
+        "trust.telemetry.security": "Windows-Sicherheitsdienst",
+        "trust.telemetry.installed": "installiert",
+        "trust.telemetry.not_installed": "nicht installiert",
+        "trust.telemetry.note": "Dies ist eine passive User-Space-Sichtbarkeitspruefung. Es werden keine Treiber installiert und keine Windows-Sicherheitseinstellungen geaendert.",
+        "research.title": "Forschungs-DNA",
+        "tray.toggle": "Schutz umschalten",
+        "tray.exit": "Beenden",
+        "heading.time": "Zeit",
+        "heading.severity": "Schweregrad",
+        "heading.score": "Score",
+        "heading.attack": "ATT&CK",
+        "heading.confidence": "Vertrauen",
+        "heading.tags": "Tags",
+        "heading.path": "Pfad",
+        "heading.action": "Aktion",
+        "heading.file": "Datei",
+        "heading.detail": "Detail",
+        "heading.evidence": "Nachweis",
+        "heading.status": "Status",
+        "heading.id": "ID",
+        "heading.name": "Name",
+        "heading.reason": "Grund",
+        "heading.level": "Ebene",
+        "heading.title": "Titel",
+        "heading.description": "Beschreibung",
+        "heading.files": "Dateien",
+        "heading.processes": "Prozesse",
+        "heading.modules": "Module",
+        "heading.connections": "Verbindungen",
+        "heading.recovery": "Wiederherstellung",
+        "heading.timeline": "Zeitleiste",
+        "heading.trigger": "Ausloeser",
+        "notify.completed": "Scan abgeschlossen",
+        "notify.interrupted": "Scan unterbrochen",
+        "notify.stopped": "Scan gestoppt",
+        "notify.system_quarantine_approved": "System-Quarantaene bestaetigt",
+        "notify.system_quarantine_approved_body": "{file} wurde fuer Quarantaene bestaetigt.",
+        "notify.system_quarantine_refused": "System-Quarantaene abgelehnt",
+        "notify.system_quarantine_refused_body": "{file} bleibt unveraendert und dieser Hash wird nicht erneut vorgeschlagen.",
+        "summary.completed": "{label} abgeschlossen: {scanned} Dateien, {found} Bedrohungen.",
+        "summary.stopped": "{label} gestoppt: {scanned} Dateien, {found} Bedrohungen.",
+        "summary.failed": "{label} nach {scanned} Dateien fehlgeschlagen: {reason}",
+        "trust.summary": (
+            "NovaSentinel ist eine ergaenzende, erklaerbare User-Space-Verteidigung fuer Windows 11.\n\n"
+            "Staerken:\n"
+            "- Ueberwacht riskante Benutzerordner, temporaere Ordner und Autostart-Orte.\n"
+            "- Bewertet verdachtige Skripte und PE-Dateien mit lesbaren Nachweisen.\n"
+            "- Erkennt ransomwareartige Dokument-Bursts und Canary-Aenderungen.\n"
+            "- Aktiviert Panik-Eindaemmung und protokolliert Vorfaelle mit Nachweisen, Zeitleiste, betroffenen Dateien und Wiederherstellungskopien.\n"
+            "- Nutzt JSON-Statusdateien mit atomaren Schreibvorgaengen und Backups.\n\n"
+            "Keine Ansprueche:\n"
+            "- Kein Kernel-Minifilter, EDR, Cloud-Reputationsnetz oder Ersatz fuer Microsoft Defender.\n"
+            "- Keine Garantie gegen Kernel-Malware, Missbrauch signierter Tools oder Manipulation durch erhoehte Angreifer.\n"
+            "- Der Recovery Vault ist Best-Effort, kein vollstaendiges Backup-System.\n\n"
+            "Empfohlener Betrieb:\n"
+            "- Zusammen mit Windows Security Echtzeitschutz verwenden.\n"
+            "- Alarme als erklaerbare Triage- und Eindaemmungssignale behandeln.\n"
+            "- Windows, Defender, Browser und Backups aktiviert halten."
+        ),
+    },
+    "it": {
+        "background_status": "Stato in background",
+        "status.active": "Protezione attiva",
+        "status.paused": "Protezione in pausa",
+        "dashboard.title": "Postura difensiva",
+        "dashboard.recent": "Rilevamenti recenti",
+        "card.realtime.title": "Tempo reale",
+        "card.realtime.body": "Monitora posizioni utente a rischio senza sostituire Microsoft Defender",
+        "card.ransomware.title": "Ransomware",
+        "card.ransomware.body": "File canary, rilevamento raffiche e prove di recupero",
+        "card.trust.title": "Postura di fiducia",
+        "card.trust.body": "Limiti chiari, prove leggibili e file di stato recuperabili",
+        "scan.title": "Centro scansioni",
+        "scan.full": "Scansione completa",
+        "scan.custom": "Scansione personalizzata",
+        "scan.pick": "Scegli cartella",
+        "scan.target": "Scansiona destinazione",
+        "scan.stop": "Ferma scansione",
+        "scan.stopping": "Arresto...",
+        "scan.placeholder": "Cartella o file personalizzato",
+        "scan.progress": "Avanzamento",
+        "scan.threats": "Minacce della scansione corrente",
+        "scan.threat_count": "{count} minaccia/e dettagliata/e sotto",
+        "scan.counter": "{threats} minacce | {files} file",
+        "scan.ready": "Pronto",
+        "scan.stopping_status": "Arresto sicuro della scansione...",
+        "ransomware.title": "Incidenti ransomware",
+        "ransomware.body": "Contenimento user-space: prove di raffica, avvisi canary, copie di recupero e blocco panico.",
+        "ransomware.panic": "Modalita panico",
+        "ransomware.panic.confirm_title": "Attivare la modalita panico?",
+        "ransomware.panic.confirm_body": "La modalita panico blocca temporaneamente le cartelle protette e monitora i nuovi avvii a rischio. Non chiude browser, strumenti audio o app gia aperte salvo che un incidente ransomware automatico identifichi un processo ad alto rischio.",
+        "ransomware.panic.started": "Modalita panico attiva: le cartelle protette sono temporaneamente bloccate.",
+        "forensics.title": "Forensics",
+        "forensics.body": "Contesto di processo e memoria catturato dopo rilevamenti ad alto rischio. E una fotografia user-space limitata, non un dump memoria grezzo.",
+        "forensics.detail": "Dettaglio forense",
+        "forensics.empty": "Nessun contesto post-alert arricchito e ancora disponibile.",
+        "quarantine.title": "Quarantena",
+        "quarantine.restore": "Ripristina selezione",
+        "quarantine.delete": "Elimina selezione",
+        "quarantine.system.confirm_title": "Confermare la quarantena di un file di sistema?",
+        "quarantine.system.confirm_body": "NovaSentinel vuole mettere in quarantena un file gestito dal sistema:\n\n{file}\nPunteggio: {score}/100\nSHA-256: {hash}...\n\nPercorso: {path}\n\nLa scelta sara ricordata per questo hash esatto. Se il file cambia, NovaSentinel chiedera di nuovo.",
+        "events.title": "Eventi di sicurezza",
+        "settings.title": "Impostazioni",
+        "settings.realtime": "Protezione file in tempo reale",
+        "settings.process": "Valutazione avvio processi",
+        "settings.ransomware": "Protezione canary e raffiche",
+        "settings.auto_quarantine": "Quarantena automatica",
+        "trust.title": "Centro fiducia",
+        "trust.telemetry.title": "Salute telemetria",
+        "trust.telemetry.pending": "controllo...",
+        "trust.telemetry.checked": "Ultimo controllo",
+        "trust.telemetry.sysmon": "Servizio Sysmon",
+        "trust.telemetry.defender": "Servizio Microsoft Defender",
+        "trust.telemetry.security": "Servizio Sicurezza di Windows",
+        "trust.telemetry.installed": "installato",
+        "trust.telemetry.not_installed": "non installato",
+        "trust.telemetry.note": "Questo e un controllo passivo di visibilita user-space. Non installa driver e non cambia le impostazioni di sicurezza di Windows.",
+        "research.title": "DNA ricerca",
+        "tray.toggle": "Attiva/disattiva protezione",
+        "tray.exit": "Esci",
+        "heading.time": "Ora",
+        "heading.severity": "Gravita",
+        "heading.score": "Punteggio",
+        "heading.attack": "ATT&CK",
+        "heading.confidence": "Confidenza",
+        "heading.tags": "Tag",
+        "heading.path": "Percorso",
+        "heading.action": "Azione",
+        "heading.file": "File",
+        "heading.detail": "Dettaglio",
+        "heading.evidence": "Prova",
+        "heading.status": "Stato",
+        "heading.id": "ID",
+        "heading.name": "Nome",
+        "heading.reason": "Motivo",
+        "heading.level": "Livello",
+        "heading.title": "Titolo",
+        "heading.description": "Descrizione",
+        "heading.files": "File",
+        "heading.processes": "Processi",
+        "heading.modules": "Moduli",
+        "heading.connections": "Connessioni",
+        "heading.recovery": "Recupero",
+        "heading.timeline": "Cronologia",
+        "heading.trigger": "Attivatore",
+        "notify.completed": "Scansione completata",
+        "notify.interrupted": "Scansione interrotta",
+        "notify.stopped": "Scansione fermata",
+        "notify.system_quarantine_approved": "Quarantena sistema confermata",
+        "notify.system_quarantine_approved_body": "{file} e stato approvato per la quarantena.",
+        "notify.system_quarantine_refused": "Quarantena sistema rifiutata",
+        "notify.system_quarantine_refused_body": "{file} resta al suo posto e questo hash non sara piu proposto.",
+        "summary.completed": "{label} completata: {scanned} file, {found} minacce.",
+        "summary.stopped": "{label} fermata: {scanned} file, {found} minacce.",
+        "summary.failed": "{label} fallita dopo {scanned} file: {reason}",
+        "trust.summary": (
+            "NovaSentinel e una difesa complementare, spiegabile e user-space per Windows 11.\n\n"
+            "Cosa fa bene:\n"
+            "- Monitora cartelle utente a rischio, temporanee e posizioni di avvio.\n"
+            "- Valuta script e file PE sospetti con prove leggibili.\n"
+            "- Rileva raffiche simili a ransomware e modifiche ai file canary.\n"
+            "- Attiva contenimento panico e registra incidenti con prove, cronologia, file interessati e copie di recupero.\n"
+            "- Mantiene file di stato JSON con scritture atomiche e backup.\n\n"
+            "Cosa non promette:\n"
+            "- Non e un minifilter kernel, EDR, rete di reputazione cloud o sostituto di Microsoft Defender.\n"
+            "- Non garantisce prevenzione contro malware kernel, abuso di strumenti firmati o manomissione da parte di un attaccante elevato.\n"
+            "- Il vault di recupero e best-effort, non un sistema di backup completo.\n\n"
+            "Uso consigliato:\n"
+            "- Eseguirlo insieme alla protezione in tempo reale di Windows Security.\n"
+            "- Trattare gli avvisi come segnali spiegabili di triage e contenimento.\n"
+            "- Tenere attivi Windows, Defender, browser e backup."
+        ),
+    },
+    "pt": {
+        "background_status": "Estado em segundo plano",
+        "status.active": "Protecao ativa",
+        "status.paused": "Protecao em pausa",
+        "dashboard.title": "Postura defensiva",
+        "dashboard.recent": "Detecoes recentes",
+        "card.realtime.title": "Tempo real",
+        "card.realtime.body": "Monitoriza locais de risco do utilizador sem substituir o Microsoft Defender",
+        "card.ransomware.title": "Ransomware",
+        "card.ransomware.body": "Ficheiros canario, deteccao de rajadas e provas de recuperacao",
+        "card.trust.title": "Postura de confianca",
+        "card.trust.body": "Limites claros, provas legiveis e ficheiros de estado recuperaveis",
+        "scan.title": "Centro de analise",
+        "scan.full": "Analise completa",
+        "scan.custom": "Analise personalizada",
+        "scan.pick": "Escolher pasta",
+        "scan.target": "Analisar alvo",
+        "scan.stop": "Parar analise",
+        "scan.stopping": "A parar...",
+        "scan.placeholder": "Pasta ou ficheiro personalizado",
+        "scan.progress": "Progresso",
+        "scan.threats": "Ameacas da analise atual",
+        "scan.threat_count": "{count} ameaca(s) detalhada(s) abaixo",
+        "scan.counter": "{threats} ameacas | {files} ficheiros",
+        "scan.ready": "Pronto",
+        "scan.stopping_status": "A parar a analise em seguranca...",
+        "ransomware.title": "Incidentes ransomware",
+        "ransomware.body": "Contencao user-space: provas de rajada, alertas canario, copias de recuperacao e bloqueio panico.",
+        "ransomware.panic": "Modo panico",
+        "ransomware.panic.confirm_title": "Ativar modo panico?",
+        "ransomware.panic.confirm_body": "O modo panico bloqueia temporariamente pastas protegidas e vigia novos lancamentos de risco. Nao fecha navegadores, ferramentas de audio ou apps ja abertas salvo se um incidente ransomware automatico identificar um processo de alto risco.",
+        "ransomware.panic.started": "Modo panico ativo: as pastas protegidas estao temporariamente bloqueadas.",
+        "forensics.title": "Forense",
+        "forensics.body": "Contexto de processo e memoria capturado apos detecoes de alto risco. E uma captura user-space limitada, nao um dump bruto de memoria.",
+        "forensics.detail": "Detalhe forense",
+        "forensics.empty": "Ainda nao ha contexto pos-alerta enriquecido disponivel.",
+        "quarantine.title": "Quarentena",
+        "quarantine.restore": "Restaurar selecao",
+        "quarantine.delete": "Eliminar selecao",
+        "quarantine.system.confirm_title": "Confirmar quarentena de ficheiro do sistema?",
+        "quarantine.system.confirm_body": "O NovaSentinel quer colocar em quarentena um ficheiro gerido pelo sistema:\n\n{file}\nPontuacao: {score}/100\nSHA-256: {hash}...\n\nCaminho: {path}\n\nA sua escolha sera memorizada para este hash exato. Se o ficheiro mudar, o NovaSentinel perguntara novamente.",
+        "events.title": "Eventos de seguranca",
+        "settings.title": "Definicoes",
+        "settings.realtime": "Protecao de ficheiros em tempo real",
+        "settings.process": "Pontuacao de lancamento de processos",
+        "settings.ransomware": "Protecao canario e rajadas",
+        "settings.auto_quarantine": "Quarentena automatica",
+        "trust.title": "Centro de confianca",
+        "trust.telemetry.title": "Saude da telemetria",
+        "trust.telemetry.pending": "a verificar...",
+        "trust.telemetry.checked": "Ultima verificacao",
+        "trust.telemetry.sysmon": "Servico Sysmon",
+        "trust.telemetry.defender": "Servico Microsoft Defender",
+        "trust.telemetry.security": "Servico Seguranca do Windows",
+        "trust.telemetry.installed": "instalado",
+        "trust.telemetry.not_installed": "nao instalado",
+        "trust.telemetry.note": "Esta e uma verificacao passiva de visibilidade user-space. Nao instala drivers nem altera definicoes de seguranca do Windows.",
+        "research.title": "ADN de pesquisa",
+        "tray.toggle": "Alternar protecao",
+        "tray.exit": "Sair",
+        "heading.time": "Hora",
+        "heading.severity": "Gravidade",
+        "heading.score": "Pontuacao",
+        "heading.attack": "ATT&CK",
+        "heading.confidence": "Confianca",
+        "heading.tags": "Etiquetas",
+        "heading.path": "Caminho",
+        "heading.action": "Acao",
+        "heading.file": "Ficheiro",
+        "heading.detail": "Detalhe",
+        "heading.evidence": "Prova",
+        "heading.status": "Estado",
+        "heading.id": "ID",
+        "heading.name": "Nome",
+        "heading.reason": "Motivo",
+        "heading.level": "Nivel",
+        "heading.title": "Titulo",
+        "heading.description": "Descricao",
+        "heading.files": "Ficheiros",
+        "heading.processes": "Processos",
+        "heading.modules": "Modulos",
+        "heading.connections": "Ligacoes",
+        "heading.recovery": "Recuperacao",
+        "heading.timeline": "Cronologia",
+        "heading.trigger": "Acionador",
+        "notify.completed": "Analise concluida",
+        "notify.interrupted": "Analise interrompida",
+        "notify.stopped": "Analise parada",
+        "notify.system_quarantine_approved": "Quarentena de sistema aprovada",
+        "notify.system_quarantine_approved_body": "{file} foi aprovado para quarentena.",
+        "notify.system_quarantine_refused": "Quarentena de sistema recusada",
+        "notify.system_quarantine_refused_body": "{file} fica no local e este hash nao sera proposto novamente.",
+        "summary.completed": "{label} concluida: {scanned} ficheiros, {found} ameacas.",
+        "summary.stopped": "{label} parada: {scanned} ficheiros, {found} ameacas.",
+        "summary.failed": "{label} falhou apos {scanned} ficheiros: {reason}",
+        "trust.summary": (
+            "O NovaSentinel e uma defesa complementar, explicavel e user-space para Windows 11.\n\n"
+            "O que faz bem:\n"
+            "- Monitoriza pastas de risco do utilizador, pastas temporarias e locais de arranque.\n"
+            "- Pontua scripts e ficheiros PE suspeitos com provas legiveis.\n"
+            "- Deteta rajadas semelhantes a ransomware e alteracoes em ficheiros canario.\n"
+            "- Ativa contencao panico e regista incidentes com provas, cronologia, ficheiros afetados e copias de recuperacao.\n"
+            "- Mantem ficheiros JSON de estado com escritas atomicas e backups.\n\n"
+            "O que nao afirma:\n"
+            "- Nao e um minifiltro kernel, EDR, rede de reputacao cloud ou substituto do Microsoft Defender.\n"
+            "- Nao garante prevencao contra malware kernel, abuso de ferramentas assinadas ou adulteracao por atacante elevado.\n"
+            "- O cofre de recuperacao e best-effort, nao um sistema completo de backups.\n\n"
+            "Modelo recomendado:\n"
+            "- Executar em conjunto com a protecao em tempo real do Windows Security.\n"
+            "- Tratar alertas como sinais explicaveis de triagem e contencao.\n"
+            "- Manter Windows, Defender, navegador e backups ativos."
+        ),
+    },
+}
+
+for language, values in _TRANSLATION_COMPLETIONS.items():
+    TRANSLATIONS[language].update(values)
 
 
 def normalize_language(language: str | None) -> str:
