@@ -70,6 +70,16 @@ TRANSLATIONS = {
             "Path: {path}\n\n"
             "Your choice will be remembered for this exact file hash. If the file changes, NovaSentinel will ask again."
         ),
+        "update.button": "Update to {version}",
+        "update.confirm_title": "Install NovaSentinel {version}?",
+        "update.confirm_body": (
+            "NovaSentinel will download and verify {file}, then close the app and launch the installer.\n\n"
+            "The current runtime state will be kept."
+        ),
+        "update.downloading": "Downloading update...",
+        "update.launching": "Launching installer...",
+        "update.error_title": "Update failed",
+        "update.error_body": "NovaSentinel could not install the update:\n\n{error}",
         "events.title": "Security events",
         "settings.title": "Settings",
         "settings.language": "Language",
@@ -124,6 +134,8 @@ TRANSLATIONS = {
         "notify.system_quarantine_approved_body": "{file} was approved for quarantine.",
         "notify.system_quarantine_refused": "System quarantine refused",
         "notify.system_quarantine_refused_body": "{file} was left in place and this hash will not be proposed again.",
+        "notify.update_available": "Update available",
+        "notify.update_available_body": "NovaSentinel {version} is ready to install.",
         "summary.completed": "{label} completed: {scanned} files, {found} threats.",
         "summary.stopped": "{label} stopped: {scanned} files, {found} threats.",
         "summary.failed": "{label} failed after {scanned} files: {reason}",
@@ -416,6 +428,18 @@ _TRANSLATION_COMPLETIONS = {
         "heading.recovery": "Recuperation",
         "heading.timeline": "Chronologie",
         "heading.trigger": "Declencheur",
+        "update.button": "Mettre a jour vers {version}",
+        "update.confirm_title": "Installer NovaSentinel {version} ?",
+        "update.confirm_body": (
+            "NovaSentinel va telecharger et verifier {file}, puis fermer l'application et lancer l'installeur.\n\n"
+            "L'etat d'execution actuel sera conserve."
+        ),
+        "update.downloading": "Telechargement de la mise a jour...",
+        "update.launching": "Lancement de l'installeur...",
+        "update.error_title": "Echec de la mise a jour",
+        "update.error_body": "NovaSentinel n'a pas pu installer la mise a jour :\n\n{error}",
+        "notify.update_available": "Mise a jour disponible",
+        "notify.update_available_body": "NovaSentinel {version} est pret a etre installe.",
         "trust.summary": (
             "NovaSentinel est positionne comme defense complementaire, explicable et user-space pour Windows 11.\n\n"
             "Ce qu'il fait bien :\n"
@@ -493,6 +517,18 @@ _TRANSLATION_COMPLETIONS = {
         "notify.system_quarantine_approved_body": "{file} fue aprobado para cuarentena.",
         "notify.system_quarantine_refused": "Cuarentena del sistema rechazada",
         "notify.system_quarantine_refused_body": "{file} se deja en su lugar y este hash no se propondra de nuevo.",
+        "update.button": "Actualizar a {version}",
+        "update.confirm_title": "Instalar NovaSentinel {version}?",
+        "update.confirm_body": (
+            "NovaSentinel descargara y verificara {file}, luego cerrara la app y lanzara el instalador.\n\n"
+            "Se conservara el estado actual."
+        ),
+        "update.downloading": "Descargando actualizacion...",
+        "update.launching": "Lanzando instalador...",
+        "update.error_title": "Error de actualizacion",
+        "update.error_body": "NovaSentinel no pudo instalar la actualizacion:\n\n{error}",
+        "notify.update_available": "Actualizacion disponible",
+        "notify.update_available_body": "NovaSentinel {version} esta listo para instalar.",
         "trust.summary": (
             "NovaSentinel es una defensa complementaria, explicable y de espacio de usuario para Windows 11.\n\n"
             "Lo que hace bien:\n"
@@ -570,6 +606,15 @@ _TRANSLATION_COMPLETIONS = {
         "notify.system_quarantine_approved_body": "تمت الموافقة على عزل {file}.",
         "notify.system_quarantine_refused": "تم رفض عزل ملف النظام",
         "notify.system_quarantine_refused_body": "سيبقى {file} في مكانه ولن يتم اقتراح هذا الهاش مرة أخرى.",
+        "update.button": "التحديث إلى {version}",
+        "update.confirm_title": "تثبيت NovaSentinel {version}؟",
+        "update.confirm_body": "سيقوم NovaSentinel بتنزيل {file} والتحقق منه، ثم إغلاق التطبيق وتشغيل المثبت.\n\nسيتم الاحتفاظ بحالة التشغيل الحالية.",
+        "update.downloading": "جار تنزيل التحديث...",
+        "update.launching": "جار تشغيل المثبت...",
+        "update.error_title": "فشل التحديث",
+        "update.error_body": "تعذر على NovaSentinel تثبيت التحديث:\n\n{error}",
+        "notify.update_available": "تحديث متاح",
+        "notify.update_available_body": "NovaSentinel {version} جاهز للتثبيت.",
         "trust.summary": (
             "NovaSentinel هو دفاع تكميلي قابل للتفسير في مساحة المستخدم لنظام Windows 11.\n\n"
             "ما يفعله جيدا:\n"
@@ -680,6 +725,18 @@ _TRANSLATION_COMPLETIONS = {
         "notify.system_quarantine_approved_body": "{file} wurde fuer Quarantaene bestaetigt.",
         "notify.system_quarantine_refused": "System-Quarantaene abgelehnt",
         "notify.system_quarantine_refused_body": "{file} bleibt unveraendert und dieser Hash wird nicht erneut vorgeschlagen.",
+        "update.button": "Auf {version} aktualisieren",
+        "update.confirm_title": "NovaSentinel {version} installieren?",
+        "update.confirm_body": (
+            "NovaSentinel laedt {file} herunter und prueft die Datei, schliesst dann die App und startet den Installer.\n\n"
+            "Der aktuelle Laufzeitstatus bleibt erhalten."
+        ),
+        "update.downloading": "Update wird heruntergeladen...",
+        "update.launching": "Installer wird gestartet...",
+        "update.error_title": "Update fehlgeschlagen",
+        "update.error_body": "NovaSentinel konnte das Update nicht installieren:\n\n{error}",
+        "notify.update_available": "Update verfuegbar",
+        "notify.update_available_body": "NovaSentinel {version} ist bereit zur Installation.",
         "summary.completed": "{label} abgeschlossen: {scanned} Dateien, {found} Bedrohungen.",
         "summary.stopped": "{label} gestoppt: {scanned} Dateien, {found} Bedrohungen.",
         "summary.failed": "{label} nach {scanned} Dateien fehlgeschlagen: {reason}",
@@ -793,6 +850,18 @@ _TRANSLATION_COMPLETIONS = {
         "notify.system_quarantine_approved_body": "{file} e stato approvato per la quarantena.",
         "notify.system_quarantine_refused": "Quarantena sistema rifiutata",
         "notify.system_quarantine_refused_body": "{file} resta al suo posto e questo hash non sara piu proposto.",
+        "update.button": "Aggiorna a {version}",
+        "update.confirm_title": "Installare NovaSentinel {version}?",
+        "update.confirm_body": (
+            "NovaSentinel scarichera e verifichera {file}, poi chiudera l'app e avviera l'installer.\n\n"
+            "Lo stato runtime corrente sara mantenuto."
+        ),
+        "update.downloading": "Download aggiornamento...",
+        "update.launching": "Avvio installer...",
+        "update.error_title": "Aggiornamento non riuscito",
+        "update.error_body": "NovaSentinel non ha potuto installare l'aggiornamento:\n\n{error}",
+        "notify.update_available": "Aggiornamento disponibile",
+        "notify.update_available_body": "NovaSentinel {version} e pronto per l'installazione.",
         "summary.completed": "{label} completata: {scanned} file, {found} minacce.",
         "summary.stopped": "{label} fermata: {scanned} file, {found} minacce.",
         "summary.failed": "{label} fallita dopo {scanned} file: {reason}",
@@ -906,6 +975,18 @@ _TRANSLATION_COMPLETIONS = {
         "notify.system_quarantine_approved_body": "{file} foi aprovado para quarentena.",
         "notify.system_quarantine_refused": "Quarentena de sistema recusada",
         "notify.system_quarantine_refused_body": "{file} fica no local e este hash nao sera proposto novamente.",
+        "update.button": "Atualizar para {version}",
+        "update.confirm_title": "Instalar NovaSentinel {version}?",
+        "update.confirm_body": (
+            "O NovaSentinel ira descarregar e verificar {file}, depois fechar a app e iniciar o instalador.\n\n"
+            "O estado atual de execucao sera mantido."
+        ),
+        "update.downloading": "A descarregar atualizacao...",
+        "update.launching": "A iniciar instalador...",
+        "update.error_title": "Atualizacao falhou",
+        "update.error_body": "O NovaSentinel nao conseguiu instalar a atualizacao:\n\n{error}",
+        "notify.update_available": "Atualizacao disponivel",
+        "notify.update_available_body": "NovaSentinel {version} esta pronto para instalar.",
         "summary.completed": "{label} concluida: {scanned} ficheiros, {found} ameacas.",
         "summary.stopped": "{label} parada: {scanned} ficheiros, {found} ameacas.",
         "summary.failed": "{label} falhou apos {scanned} ficheiros: {reason}",
