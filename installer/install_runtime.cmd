@@ -13,12 +13,12 @@ taskkill /IM NovaSentinel.exe /F >nul 2>nul
 if exist "%DEST%" rmdir /S /Q "%DEST%"
 mkdir "%DEST%"
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '%ZIP_PATH%' -DestinationPath '%DEST%' -Force"
+powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '%ZIP_PATH%' -DestinationPath '%DEST%' -Force"
 if errorlevel 1 goto :fail
 
 copy /Y "%UNINSTALL_SOURCE%" "%DEST%\uninstall_runtime.ps1" >nul
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command ^
   "$shell = New-Object -ComObject WScript.Shell; " ^
   "$startup = [Environment]::GetFolderPath('Startup'); " ^
   "$programs = [Environment]::GetFolderPath('Programs'); " ^
@@ -39,7 +39,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "} "
 if errorlevel 1 goto :fail
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+powershell -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command ^
   "$action = New-ScheduledTaskAction -Execute (Join-Path '%DEST%' 'NovaSentinel.exe') -Argument '--background'; " ^
   "$trigger = New-ScheduledTaskTrigger -AtLogOn; " ^
   "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name; " ^
