@@ -139,7 +139,8 @@ class RansomwareGuard:
 
     def list_incidents(self) -> list[dict]:
         self.incidents = load_json_list(INCIDENTS_FILE)
-        return list(self.incidents[-120:])
+        limit = 300 if self.settings.premium_extended_forensics else 120
+        return list(self.incidents[-limit:])
 
     def refresh_settings(self, settings: AppSettings) -> None:
         self.settings = settings
@@ -160,7 +161,7 @@ class RansomwareGuard:
             size = path.stat().st_size
         except OSError:
             return
-        if size > MAX_RECOVERY_FILE_SIZE:
+        if size > self._max_recovery_file_size():
             return
         recovery_path = self._recovery_path_for(path)
         try:
@@ -190,7 +191,7 @@ class RansomwareGuard:
             self.recovery_candidates[path]
             for path in related_paths
             if path in self.recovery_candidates
-        ][:MAX_INCIDENT_RECOVERY_FILES]
+        ][: self._max_incident_recovery_files()]
         behavior = self._build_behavior_profile(reason, related_paths, recovery_files)
         if containment is None:
             containment = self._should_contain_behavior(reason, behavior)
@@ -231,9 +232,16 @@ class RansomwareGuard:
         incident["xai"] = explain_incident(incident)
         incident["incident_graph"] = build_incident_graph(incident)
         self.incidents.append(incident)
-        self.incidents = self.incidents[-300:]
+        limit = 900 if self.settings.premium_extended_forensics else 300
+        self.incidents = self.incidents[-limit:]
         save_json_list(INCIDENTS_FILE, self.incidents)
         return incident
+
+    def _max_recovery_file_size(self) -> int:
+        return 100 * 1024 * 1024 if self.settings.premium_recovery_vault else MAX_RECOVERY_FILE_SIZE
+
+    def _max_incident_recovery_files(self) -> int:
+        return 96 if self.settings.premium_recovery_vault else MAX_INCIDENT_RECOVERY_FILES
 
     def _build_behavior_profile(
         self,

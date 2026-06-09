@@ -154,7 +154,8 @@ class NovaSentinelEngine:
         self._enrich_post_alert(result, "result")
         item = result.to_dict()
         self.history.append(item)
-        self.history = self.history[-400:]
+        history_limit = 1200 if self.settings.premium_extended_forensics else 400
+        self.history = self.history[-history_limit:]
         save_json_list(HISTORY_FILE, self.history)
 
     def record_event(self, event: EventRecord) -> None:

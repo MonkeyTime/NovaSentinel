@@ -21,6 +21,8 @@ HISTORY_FILE = STATE_DIR / "history.json"
 EVENTS_FILE = STATE_DIR / "events.json"
 INCIDENTS_FILE = STATE_DIR / "incidents.json"
 SYSTEM_QUARANTINE_DECISIONS_FILE = STATE_DIR / "system_quarantine_decisions.json"
+PREMIUM_ENTITLEMENT_FILE = STATE_DIR / "premium_entitlement.json"
+PREMIUM_DEVICE_FILE = STATE_DIR / "premium_device.json"
 CANARY_DIR = STATE_DIR / "canaries"
 RECOVERY_DIR = STATE_DIR / "recovery_vault"
 LOCKDOWN_STATE_FILE = STATE_DIR / "lockdown_state.json"
@@ -139,6 +141,10 @@ def load_settings() -> AppSettings:
         recent_scan_target=payload.get("recent_scan_target", ""),
         window_geometry=payload.get("window_geometry", ""),
         language=payload.get("language", "en"),
+        premium_update_channel=payload.get("premium_update_channel", False),
+        premium_large_file_scans=payload.get("premium_large_file_scans", False),
+        premium_extended_forensics=payload.get("premium_extended_forensics", False),
+        premium_recovery_vault=payload.get("premium_recovery_vault", False),
     )
 
 

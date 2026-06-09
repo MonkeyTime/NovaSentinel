@@ -12,6 +12,7 @@ import customtkinter as ctk
 from novaguard import APP_NAME, APP_VERSION
 from novaguard.attack import build_incident_graph, correlate_incident, correlate_scan_result, explain_incident, explain_scan_result
 from novaguard.bootstrap import ensure_icon_assets
+from novaguard.core.premium import PremiumState, activate_premium_key, fetch_latest_premium_update, load_cached_premium_state
 from novaguard.core.updater import UpdateInfo, download_update_installer, fetch_latest_update, launch_update_installer
 from novaguard.i18n import LANGUAGES, normalize_language, tr, trust_center_summary
 from novaguard.models import AppSettings
@@ -59,6 +60,10 @@ class NovaSentinelWindow(ctk.CTk):
         self.settings_vars: dict[str, tk.Variable] = {}
         self.language_var = tk.StringVar(value=LANGUAGES[self.language])
         self.language_by_label = {label: code for code, label in LANGUAGES.items()}
+        self.premium_state: PremiumState = load_cached_premium_state()
+        self.premium_status_var = tk.StringVar(value=self._premium_status_text())
+        self.premium_key_entry: ctk.CTkEntry | None = None
+        self.premium_activate_button: ctk.CTkButton | None = None
 
         self.update_info: UpdateInfo | None = None
         self.update_button: ctk.CTkButton | None = None
@@ -395,11 +400,17 @@ class NovaSentinelWindow(ctk.CTk):
         form.pack(fill="x", padx=18, pady=(0, 18))
 
         settings: AppSettings = self.engine.get_snapshot()["settings"]
+        self.premium_state = load_cached_premium_state()
+        self.premium_status_var.set(self._premium_status_text())
         self.settings_vars = {
             "realtime_enabled": tk.BooleanVar(value=settings.realtime_enabled),
             "process_guard_enabled": tk.BooleanVar(value=settings.process_guard_enabled),
             "ransomware_guard_enabled": tk.BooleanVar(value=settings.ransomware_guard_enabled),
             "automatic_quarantine": tk.BooleanVar(value=settings.automatic_quarantine),
+            "premium_update_channel": tk.BooleanVar(value=settings.premium_update_channel),
+            "premium_large_file_scans": tk.BooleanVar(value=settings.premium_large_file_scans),
+            "premium_extended_forensics": tk.BooleanVar(value=settings.premium_extended_forensics),
+            "premium_recovery_vault": tk.BooleanVar(value=settings.premium_recovery_vault),
         }
         for key, label in [
             ("realtime_enabled", self.t("settings.realtime")),
@@ -414,6 +425,43 @@ class NovaSentinelWindow(ctk.CTk):
         ctk.CTkLabel(language_row, text=self.t("settings.language"), font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 12))
         self.language_var = tk.StringVar(value=LANGUAGES[self.language])
         ctk.CTkOptionMenu(language_row, values=list(LANGUAGES.values()), variable=self.language_var).pack(side="left")
+
+        premium_card = ctk.CTkFrame(form, fg_color="#102823")
+        premium_card.pack(fill="x", padx=18, pady=(14, 8))
+        premium_header = ctk.CTkFrame(premium_card, fg_color="transparent")
+        premium_header.pack(fill="x", padx=14, pady=(14, 4))
+        ctk.CTkLabel(premium_header, text=self.t("premium.title"), font=ctk.CTkFont(weight="bold")).pack(side="left")
+        ctk.CTkLabel(premium_header, textvariable=self.premium_status_var, text_color="#a0cebf").pack(side="right")
+        key_row = ctk.CTkFrame(premium_card, fg_color="transparent")
+        key_row.pack(fill="x", padx=14, pady=(6, 10))
+        self.premium_key_entry = ctk.CTkEntry(key_row, placeholder_text=self.t("premium.key_placeholder"), show="*")
+        self.premium_key_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.premium_activate_button = ctk.CTkButton(key_row, text=self.t("premium.activate"), command=self.activate_premium)
+        self.premium_activate_button.pack(side="right")
+        ctk.CTkLabel(
+            premium_card,
+            text=self.t("premium.description"),
+            text_color="#a0cebf",
+            wraplength=900,
+            justify="left",
+        ).pack(anchor="w", padx=14, pady=(0, 10))
+        for key, label, feature in [
+            ("premium_update_channel", self.t("premium.option_updates"), "premium_updates"),
+            ("premium_large_file_scans", self.t("premium.option_large_files"), "large_file_scans"),
+            ("premium_extended_forensics", self.t("premium.option_forensics"), "extended_forensics"),
+            ("premium_recovery_vault", self.t("premium.option_recovery"), "recovery_vault"),
+        ]:
+            state = "normal" if self.premium_state.has_feature(feature) else "disabled"
+            if state == "disabled":
+                self.settings_vars[key].set(False)
+            ctk.CTkSwitch(
+                premium_card,
+                text=label,
+                variable=self.settings_vars[key],
+                onvalue=True,
+                offvalue=False,
+                state=state,
+            ).pack(anchor="w", padx=14, pady=6)
 
         self.paths_box = ctk.CTkTextbox(form, height=160)
         self.paths_box.pack(fill="x", padx=18, pady=(10, 18))
@@ -566,6 +614,7 @@ class NovaSentinelWindow(ctk.CTk):
         self.scan_threat_signature = ()
         self.trust_signature = ""
         self.language_var.set(LANGUAGES[self.language])
+        self.premium_status_var.set(self._premium_status_text())
 
         self._build_sidebar()
         self._build_views()
@@ -680,7 +729,12 @@ class NovaSentinelWindow(ctk.CTk):
 
     def _check_for_updates_worker(self) -> None:
         try:
-            update = fetch_latest_update(APP_VERSION)
+            settings: AppSettings = self.engine.get_snapshot()["settings"]
+            update = None
+            if settings.premium_update_channel and load_cached_premium_state().has_feature("premium_updates"):
+                update = fetch_latest_premium_update(APP_VERSION)
+            if update is None:
+                update = fetch_latest_update(APP_VERSION)
         except Exception:
             update = None
         self.after(0, lambda: self._finish_update_check(update))
@@ -801,6 +855,40 @@ class NovaSentinelWindow(ctk.CTk):
             self.notifier(self.t(title_key), message)
         return approved
 
+    def activate_premium(self) -> None:
+        if not self.premium_key_entry or not self.premium_activate_button:
+            return
+        key = self.premium_key_entry.get().strip()
+        if not key:
+            messagebox.showwarning(self.t("premium.error_title"), self.t("premium.empty_key"), parent=self)
+            return
+        self.premium_activate_button.configure(text=self.t("premium.checking"), state="disabled")
+        thread = threading.Thread(target=self._activate_premium_worker, args=(key,), name="NovaSentinelPremiumActivation", daemon=True)
+        thread.start()
+
+    def _activate_premium_worker(self, key: str) -> None:
+        try:
+            state = activate_premium_key(key)
+        except Exception as exc:
+            self.after(0, lambda error=str(exc): self._finish_premium_activation(None, error))
+            return
+        self.after(0, lambda: self._finish_premium_activation(state, ""))
+
+    def _finish_premium_activation(self, state: PremiumState | None, error: str) -> None:
+        if self.premium_activate_button:
+            self.premium_activate_button.configure(text=self.t("premium.activate"), state="normal")
+        if state is None:
+            self.premium_state = load_cached_premium_state()
+            self.premium_status_var.set(self._premium_status_text())
+            messagebox.showwarning(self.t("premium.error_title"), self.t("premium.error_body", error=error), parent=self)
+            return
+        self.premium_state = state
+        self.premium_status_var.set(self._premium_status_text())
+        if self.premium_key_entry:
+            self.premium_key_entry.delete(0, "end")
+        messagebox.showinfo(self.t("premium.success_title"), self.t("premium.success_body", plan=state.plan), parent=self)
+        self._rebuild_interface()
+
     def set_language_change_callback(self, callback) -> None:
         self.language_change_callback = callback
 
@@ -828,10 +916,16 @@ class NovaSentinelWindow(ctk.CTk):
         roots = [line.strip() for line in self.paths_box.get("1.0", "end").splitlines() if line.strip()]
         current: AppSettings = self.engine.get_snapshot()["settings"]
         previous_language = self.language
+        premium = load_cached_premium_state()
         current.realtime_enabled = bool(self.settings_vars["realtime_enabled"].get())
         current.process_guard_enabled = bool(self.settings_vars["process_guard_enabled"].get())
         current.ransomware_guard_enabled = bool(self.settings_vars["ransomware_guard_enabled"].get())
         current.automatic_quarantine = bool(self.settings_vars["automatic_quarantine"].get())
+        current.premium_update_channel = premium.has_feature("premium_updates") and bool(self.settings_vars["premium_update_channel"].get())
+        current.premium_large_file_scans = premium.has_feature("large_file_scans") and bool(self.settings_vars["premium_large_file_scans"].get())
+        current.premium_extended_forensics = premium.has_feature("extended_forensics") and bool(self.settings_vars["premium_extended_forensics"].get())
+        current.premium_recovery_vault = premium.has_feature("recovery_vault") and bool(self.settings_vars["premium_recovery_vault"].get())
+        current.max_file_size_mb = 256 if current.premium_large_file_scans else 64
         current.language = self.language_by_label.get(self.language_var.get(), "en")
         current.scan_roots = roots
         self.engine.update_settings(current)
@@ -840,6 +934,12 @@ class NovaSentinelWindow(ctk.CTk):
             if self.language_change_callback:
                 self.language_change_callback(self.language)
             self._rebuild_interface()
+
+    def _premium_status_text(self) -> str:
+        if self.premium_state.active:
+            suffix = f" | {self.premium_state.expires_at}" if self.premium_state.expires_at else ""
+            return self.t("premium.status_active", plan=self.premium_state.plan) + suffix
+        return self.t("premium.status_inactive")
 
     def refresh_view(self) -> None:
         try:
@@ -1138,7 +1238,9 @@ class NovaSentinelWindow(ctk.CTk):
             return
         rows: list[tuple] = []
         self.forensic_detail_by_key = {}
-        for item in reversed(history[-120:]):
+        settings: AppSettings = self.engine.get_snapshot()["settings"]
+        limit = 300 if settings.premium_extended_forensics else 120
+        for item in reversed(history[-limit:]):
             post_alert = item.get("post_alert") or {}
             if not post_alert:
                 continue

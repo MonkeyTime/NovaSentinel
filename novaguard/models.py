@@ -62,6 +62,10 @@ class AppSettings:
     recent_scan_target: str = ""
     window_geometry: str = ""
     language: str = "en"
+    premium_update_channel: bool = False
+    premium_large_file_scans: bool = False
+    premium_extended_forensics: bool = False
+    premium_recovery_vault: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
