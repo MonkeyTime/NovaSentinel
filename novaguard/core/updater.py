@@ -190,7 +190,7 @@ if (Test-Path -LiteralPath $Uninstaller) {{
     Start-Sleep -Milliseconds 800
 }}
 
-Start-Process -FilePath $Installer -Wait
+Start-Process -FilePath $Installer -ArgumentList @("-install-dir", $InstallDir) -Wait
 """
     script_path.write_text(script.strip() + "\n", encoding="utf-8")
     return script_path

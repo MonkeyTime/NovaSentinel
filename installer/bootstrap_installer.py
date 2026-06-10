@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 import json
 import shutil
@@ -157,6 +158,17 @@ def choose_language() -> str | None:
     return selected
 
 
+def parse_install_dir(raw_dir: str | None) -> Path | None:
+    if not raw_dir:
+        return None
+    candidate = Path(raw_dir).expanduser()
+    if not candidate.exists():
+        return None
+    if not candidate.is_dir():
+        return None
+    return candidate
+
+
 def write_language_preference(language: str, appdata_dir: Path | None = None) -> None:
     appdata = appdata_dir or Path(os.getenv("APPDATA", str(Path.home() / "AppData" / "Roaming")))
     state_dir = appdata / APP_NAME
@@ -277,13 +289,19 @@ def install() -> int:
     if language is None:
         return 0
     text = installer_text(language)
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--install-dir")
+    args, _extra = parser.parse_known_args()
+
     zip_path = resource_path("NovaSentinel.zip")
     uninstall_script = resource_path("uninstall_runtime.ps1")
     if not zip_path.exists():
         message_box(text["title"], text["payload_missing"], 0x10)
         return 1
 
-    install_dir = Path(os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))) / "Programs" / APP_NAME
+    install_dir = parse_install_dir(args.install_dir)
+    if install_dir is None:
+        install_dir = Path(os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))) / "Programs" / APP_NAME
     install_dir.parent.mkdir(parents=True, exist_ok=True)
 
     stop_running_app()
