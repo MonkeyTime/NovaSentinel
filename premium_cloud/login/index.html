@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connexion - NovaSentinel Premium</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body class="portal-page" data-auth-page>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="NovaSentinel">
+        <img src="/assets/novasentinel_icon.png" alt="" />
+        <span>NovaSentinel</span>
+      </a>
+      <div class="header-actions">
+        <nav class="nav-anchors" aria-label="Ancres de page" data-nav-anchors></nav>
+        <span class="nav-pipe" aria-hidden="true">|</span>
+        <nav class="nav-account" aria-label="Liens compte" data-nav-account></nav>
+        <div data-nav-language></div>
+      </div>
+    </header>
+
+    <main class="auth-shell">
+      <section class="auth-panel" aria-labelledby="login-title">
+        <p class="eyebrow">Compte NovaSentinel</p>
+        <h1 id="login-title">Accès Premium</h1>
+        <p>Connectez-vous, activez une licence achetée, ou créez le premier superadmin d'une installation locale.</p>
+
+        <div id="loginState" class="inline-state">Vérification de la session...</div>
+
+        <div class="auth-tabs" aria-label="Parcours d'accès">
+          <button class="active" type="button" data-auth-mode="login">Connexion</button>
+          <button type="button" data-auth-mode="claim">Activer une licence</button>
+          <button type="button" data-auth-mode="setup">Bootstrap superadmin</button>
+        </div>
+
+        <section class="auth-mode-panel active" data-auth-panel="login" aria-label="Connexion">
+          <form id="passwordStep" class="auth-form">
+            <label>Email<input name="email" type="email" autocomplete="email" required /></label>
+            <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required /></label>
+            <button class="button primary" type="submit">Continuer</button>
+          </form>
+
+          <form id="twoFactorStep" class="auth-form auth-hidden">
+            <div class="mfa-banner">
+              <strong>2FA requis</strong>
+              <span>Ouvrez votre application TOTP et saisissez le code à 6 chiffres.</span>
+            </div>
+            <label>Code 2FA<input name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required /></label>
+            <button class="button primary" type="submit">Ouvrir le dashboard</button>
+            <button class="button secondary" type="button" id="backToPassword">Retour</button>
+          </form>
+        </section>
+
+        <section class="auth-mode-panel" data-auth-panel="claim" aria-label="Activation licence">
+          <form id="claimForm" class="auth-form">
+            <div class="form-intro">
+              <strong>Créer le premier compte client</strong>
+              <span>Utilisez la clé Premium émise après paiement Stripe ou par un superadmin.</span>
+            </div>
+            <label>Clé Premium<input name="license_key" autocomplete="off" placeholder="NSP-PREMIUM-..." required /></label>
+            <label>Email facturation<input name="email" type="email" autocomplete="email" required /></label>
+            <label>Mot de passe fort<input name="password" type="password" autocomplete="new-password" minlength="14" required /></label>
+            <button class="button primary" type="submit">Activer le compte client</button>
+            <div id="claimState" class="secret-state">Le QR code 2FA sera affiché une seule fois après création.</div>
+          </form>
+        </section>
+
+        <section class="auth-mode-panel" data-auth-panel="setup" aria-label="Bootstrap superadmin">
+          <form id="setupSuperadminForm" class="auth-form">
+            <div class="form-intro">
+              <strong>Créer le premier superadmin</strong>
+              <span>Disponible seulement si aucun superadmin n'existe et si le token serveur est configuré.</span>
+            </div>
+            <label>Email superadmin<input name="email" type="email" autocomplete="email" required /></label>
+            <label>Token bootstrap<input name="bootstrap_token" type="password" autocomplete="one-time-code" required /></label>
+            <label>Mot de passe fort<input name="password" type="password" autocomplete="new-password" minlength="14" required /></label>
+            <button class="button primary" type="submit">Créer le superadmin</button>
+            <div id="setupState" class="secret-state">Le QR code 2FA sera affiché une seule fois après création.</div>
+          </form>
+        </section>
+      </section>
+
+      <aside class="auth-side">
+        <h2>Flux conseillé</h2>
+        <ol class="step-list">
+          <li>Bootstrap superadmin local si le serveur est neuf.</li>
+          <li>Émettre une licence depuis le dashboard superadmin ou passer par Stripe.</li>
+          <li>Activer la licence pour créer le compte client.</li>
+          <li>Se connecter avec email, mot de passe et TOTP.</li>
+        </ol>
+        <div class="support-card">
+          <strong>Pas de données factices</strong>
+          <span>Les comptes, licences et actions viennent de SQLite et sont audités côté serveur.</span>
+        </div>
+      </aside>
+    </main>
+
+    <script src="../site-nav.js"></script>
+    <script src="../portal.js"></script>
+  </body>
+</html>

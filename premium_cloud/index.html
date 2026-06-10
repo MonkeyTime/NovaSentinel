@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NovaSentinel Premium</title>
+    <meta name="description" content="NovaSentinel Premium: défense Windows complémentaire, licences professionnelles, réputation hash, règles signées et Admin Console téléchargeable." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="NovaSentinel">
+        <img src="/assets/novasentinel_icon.png" alt="" />
+        <span>NovaSentinel</span>
+      </a>
+      <div class="header-actions">
+        <nav class="nav-anchors" aria-label="Ancres de page" data-nav-anchors></nav>
+        <span class="nav-pipe" aria-hidden="true">|</span>
+        <nav class="nav-account" aria-label="Liens compte" data-nav-account></nav>
+        <div data-nav-language>
+          <label class="language-select" for="languageSelect">
+            <span data-i18n="language.label">Langue</span>
+            <select id="languageSelect" aria-label="Langue du site" data-i18n-attr="aria-label:language.aria">
+              <option value="fr">Français</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="de">Deutsch</option>
+              <option value="it">Italiano</option>
+              <option value="pt">Português</option>
+              <option value="ar">العربية</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-grid" aria-hidden="true">
+          <div class="screen screen-main"><span></span><span></span><span></span><i></i><i></i><i></i><i></i></div>
+          <div class="screen screen-side"><span></span><span></span><span></span></div>
+        </div>
+        <div class="hero-copy">
+          <p class="eyebrow" data-i18n="hero.eyebrow">Défense Windows complémentaire</p>
+          <h1 id="hero-title">NovaSentinel Premium</h1>
+          <p data-i18n="hero.body">Une application de protection explicable pour Windows, avec services Premium hébergés par NovaSentinel: licences, mises à jour signées, réputation hash et distribution professionnelle.</p>
+        </div>
+        <div id="download" class="download-hub" aria-label="Téléchargement NovaSentinel" data-i18n-attr="aria-label:download.aria">
+          <img src="/assets/novasentinel_icon.png" alt="" />
+          <div><strong data-i18n="download.title">Télécharger NovaSentinel</strong><span data-i18n="download.body">Version Windows avec activation Premium optionnelle</span></div>
+          <a class="button primary" href="/downloads/NovaSentinelSetup.exe" download data-i18n="download.button">Download</a>
+        </div>
+      </section>
+
+      <section class="trust-strip" aria-label="Modèle de confiance" data-i18n-attr="aria-label:trust.aria">
+        <div><strong data-i18n="trust.one.title">Pas un EDR</strong><span data-i18n="trust.one.body">Pas de promesse kernel ou mini-filter.</span></div>
+        <div><strong data-i18n="trust.two.title">Hash first</strong><span data-i18n="trust.two.body">Pas d'upload de fichiers par défaut.</span></div>
+        <div><strong data-i18n="trust.three.title">Clé signée</strong><span data-i18n="trust.three.body">Droits Premium vérifiés localement.</span></div>
+        <div><strong data-i18n="trust.four.title">Admin local</strong><span data-i18n="trust.four.body">Le parc client reste chez le client.</span></div>
+      </section>
+
+      <section id="premium" class="section">
+        <div class="section-head">
+          <p class="eyebrow" data-i18n="premium.eyebrow">Ce que nous hébergeons</p>
+          <h2 data-i18n="premium.title">Premium ajoute des services professionnels, pas un faux moteur antivirus.</h2>
+          <p data-i18n="premium.body">NovaSentinel reste une défense complémentaire. Le cloud NovaSentinel sert aux licences, règles signées, réputation par hash, mises à jour, achat et distribution.</p>
+        </div>
+        <div class="feature-grid">
+          <article><h3 data-i18n="feature.rules.title">Règles et IOC signés</h3><p data-i18n="feature.rules.body">Base de hashs/signatures, seuils heuristiques enrichis et listes d'IOC distribués en packs signés.</p></article>
+          <article><h3 data-i18n="feature.cloud.title">Réputation cloud</h3><p data-i18n="feature.cloud.body">Vérification des hashs inconnus, score serveur privé, cache local et mode confidentialité.</p></article>
+          <article><h3 data-i18n="feature.forensics.title">Forensics Pro</h3><p data-i18n="feature.forensics.body">Rapports PDF/HTML, timeline d'incident, exports JSON/CSV et preuves enrichies.</p></article>
+          <article><h3 data-i18n="feature.distribution.title">Distribution pro</h3><p data-i18n="feature.distribution.body">Auto-update de l'application, canal stable/beta, documentation pro et support prioritaire.</p></article>
+        </div>
+      </section>
+
+      <section id="buy" class="section purchase-section">
+        <div class="section-head">
+          <p class="eyebrow" data-i18n="buy.eyebrow">Achat de clé</p>
+          <h2 data-i18n="buy.title">Choisissez le nombre de postes et générez une clé Premium.</h2>
+          <p data-i18n="buy.body">Paiement prévu via Stripe Checkout. En production, le backend créera la licence seulement après webhook Stripe confirmé, puis signera les entitlements.</p>
+        </div>
+        <div class="purchase-layout">
+          <form id="purchaseForm" class="purchase-form">
+            <label><span data-i18n="form.org">Organisation</span><input name="org" value="Acme IT" autocomplete="organization" /></label>
+            <label><span data-i18n="form.email">Email responsable</span><input name="email" value="admin@example.com" autocomplete="email" /></label>
+            <div class="single-plan">
+              <span data-i18n="form.plan">Plan</span>
+              <strong>Premium</strong>
+              <small data-i18n="form.plan_body">Toutes les options Premium, facturées selon le nombre de postes.</small>
+            </div>
+            <label><span data-i18n="form.seats">Nombre de postes</span><input name="seats" type="number" min="1" max="5000" value="25" /></label>
+            <a class="button primary" href="subscribe/" data-i18n="form.submit">Continuer avec Stripe</a>
+          </form>
+          <aside class="order-card" aria-live="polite">
+            <h3 data-i18n="summary.title">Résumé</h3>
+            <dl>
+              <div><dt data-i18n="summary.plan">Plan</dt><dd id="summaryPlan">Premium</dd></div>
+              <div><dt data-i18n="summary.seats">Postes</dt><dd id="summarySeats">25</dd></div>
+              <div><dt data-i18n="summary.price">Total mensuel</dt><dd id="summaryPrice">225 EUR</dd></div>
+            </dl>
+            <div id="licenseResult" class="license-result"><span data-i18n="summary.pending">Clé générée après validation achat</span></div>
+            <p class="stripe-note" data-i18n="summary.note">Stripe Checkout gérera le paiement. La clé organisation est créée côté serveur après confirmation.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="admin-console" class="section admin-section">
+        <div class="admin-copy">
+          <p class="eyebrow" data-i18n="admin.eyebrow">Pour responsables de parc</p>
+          <h2 data-i18n="admin.title">NovaSentinel Admin Console sera téléchargeable.</h2>
+          <p data-i18n="admin.body">Nous hébergeons l'achat, les licences, les signatures et les mises à jour. L'Admin Console se télécharge côté client pour préparer les déploiements de masse, les clés Premium et les paquets de préconfiguration.</p>
+          <div class="button-row">
+            <a class="button primary" href="#download" data-i18n="admin.download">Télécharger NovaSentinel</a>
+            <button id="adminPreview" class="button secondary" type="button" data-i18n="admin.prepare">Préparer Admin Console</button>
+          </div>
+        </div>
+        <div class="console-card">
+          <h3 data-i18n="admin.integration">Intégration prévue</h3>
+          <ul>
+            <li data-i18n="admin.item1">Import de la clé organisation achetée.</li>
+            <li data-i18n="admin.item2">Génération de scripts GPO, Intune, RMM et PowerShell.</li>
+            <li data-i18n="admin.item3">Paquets JSON de préconfiguration et modèle CSV licences.</li>
+            <li data-i18n="admin.item4">Synchronisation optionnelle avec l'API licence NovaSentinel.</li>
+          </ul>
+          <pre id="adminSnippet"></pre>
+        </div>
+      </section>
+
+      <section id="security" class="section security-section">
+        <div class="section-head">
+          <p class="eyebrow" data-i18n="security.eyebrow">Architecture sécurisée</p>
+          <h2 data-i18n="security.title">Le secret reste côté NovaSentinel. L'app ne vérifie que des preuves signées.</h2>
+        </div>
+        <div class="timeline">
+          <article><strong>1</strong><span data-i18n="security.step1">Achat et création de licence sur notre site.</span></article>
+          <article><strong>2</strong><span data-i18n="security.step2">Activation par clé client ou clé organisation.</span></article>
+          <article><strong>3</strong><span data-i18n="security.step3">Serveur NovaSentinel retourne un entitlement Ed25519 signé.</span></article>
+          <article><strong>4</strong><span data-i18n="security.step4">L'app déverrouille seulement les droits signés et non expirés.</span></article>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>
+      <span>NovaSentinel Premium</span>
+      <a href="subscribe/" data-i18n="footer.buy">Acheter une clé</a>
+      <a href="dashboard/user/" data-i18n="footer.admin">Dashboard</a>
+      <a href="login/" data-i18n="footer.login">Login</a>
+      <a href="#download" data-i18n="footer.download">Download</a>
+    </footer>
+
+    <script src="site-nav.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

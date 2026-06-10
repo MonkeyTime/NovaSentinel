@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard client - NovaSentinel Premium</title>
+    <link rel="stylesheet" href="../../styles.css" />
+  </head>
+  <body class="portal-page" data-dashboard="user">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="NovaSentinel">
+        <img src="/assets/novasentinel_icon.png" alt="" />
+        <span>NovaSentinel</span>
+      </a>
+      <div class="header-actions">
+        <nav class="nav-anchors" aria-label="Ancres de page" data-nav-anchors></nav>
+        <span class="nav-pipe" aria-hidden="true">|</span>
+        <nav class="nav-account" aria-label="Liens compte" data-nav-account></nav>
+        <div data-nav-language></div>
+      </div>
+    </header>
+
+    <main class="dashboard-shell">
+      <aside class="dashboard-rail">
+        <strong>Portail IT</strong>
+        <button class="superadmin-tab active" type="button" data-panel="overview">Vue globale</button>
+        <button class="superadmin-tab" type="button" data-panel="licenses">Licences</button>
+        <button class="superadmin-tab" type="button" data-panel="deploy">Déploiement</button>
+        <button class="superadmin-tab" type="button" data-panel="security">Sécurité</button>
+      </aside>
+
+      <section class="dashboard-main">
+        <div class="dashboard-title">
+          <div>
+            <p class="eyebrow">Dashboard client</p>
+            <h1 id="userOrgName">Organisation</h1>
+          </div>
+          <div id="userDashboardState" class="inline-state compact-state">Chargement...</div>
+        </div>
+
+        <div class="superadmin-kpis">
+          <article><span>Postes achetés</span><strong id="userSeats">0</strong><small>Premium</small></article>
+          <article><span>Postes activés</span><strong id="userActiveSeats">0</strong><small id="userAvailableSeats">0 disponibles</small></article>
+          <article><span>Dernière activation</span><strong id="userLastActivation">Aucune</strong><small>Dernier appareil vu</small></article>
+          <article><span>Canal update</span><strong id="userUpdateChannel">stable</strong><small id="userAppVersion">n/a</small></article>
+        </div>
+
+        <div class="superadmin-panel active" data-panel="overview">
+          <div class="panel-card">
+            <h2>Actions rapides</h2>
+            <p>Les actions ci-dessous utilisent la licence liée à votre organisation.</p>
+            <div class="admin-action-grid">
+              <a class="button secondary" href="/downloads/NovaSentinelSetup.exe">Télécharger NovaSentinel</a>
+              <button id="copyOrgKey" type="button">Copier clé organisation</button>
+              <button type="button" onclick="showPanel('deploy')">Voir script Intune</button>
+              <button id="exportActivations" type="button">Exporter activations</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="superadmin-panel" data-panel="licenses">
+          <div class="panel-card">
+            <h2>Licences</h2>
+            <div id="userLicenseRows" class="admin-table"></div>
+          </div>
+          <div class="panel-card">
+            <h2>Activations</h2>
+            <div id="activationRows" class="admin-table"></div>
+          </div>
+        </div>
+
+        <div class="superadmin-panel" data-panel="deploy">
+          <div class="panel-card">
+            <h2>Déploiement automatique</h2>
+            <p>Déposez le JSON dans `%ProgramData%\NovaSentinel\premium_deployment.json` ou utilisez le script Intune.</p>
+            <pre id="deploymentScript">Chargement...</pre>
+          </div>
+        </div>
+
+        <div class="superadmin-panel" data-panel="security">
+          <div class="panel-card">
+            <h2>Sécurité du compte</h2>
+            <ul class="security-list">
+              <li>2FA obligatoire pour les administrateurs de l'organisation.</li>
+              <li>La clé organisation n'est affichée qu'après session serveur valide.</li>
+              <li>Chaque claim, login et action sensible est inscrit dans l'audit log.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="../../site-nav.js"></script>
+    <script src="../../portal.js"></script>
+  </body>
+</html>

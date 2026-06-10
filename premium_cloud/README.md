@@ -1,0 +1,98 @@
+# NovaSentinel Premium website
+
+This folder is the hosted NovaSentinel web property and Node backend:
+
+- marketing home page
+- `/login` authentication and 2FA entry point
+- `/subscribe` Premium subscription/Stripe checkout entry point
+- `/dashboard/user` customer/IT dashboard
+- `/dashboard/superadmin` NovaSentinel-only internal dashboard
+- `/api/*` JSON API backed by SQLite
+- NovaSentinel download hero
+- Premium seat-count selection
+- Stripe checkout integration target
+- hosted license/API explanation
+- Admin Console download/integration preparation
+
+Run locally with:
+
+```powershell
+cd premium_cloud
+node server.js
+```
+
+The server listens on `http://127.0.0.1:8780` by default and stores runtime state in `premium_cloud/data/premium_cloud.sqlite3`.
+
+Node 24+ is required because the backend uses the built-in `node:sqlite` module. The database starts empty. No demo users, licenses, organizations, or fake fixtures are inserted.
+
+Required production environment:
+
+- `STRIPE_SECRET_KEY`: creates real Stripe Checkout Sessions.
+- `STRIPE_WEBHOOK_SECRET`: verifies Stripe webhook signatures.
+- `PUBLIC_BASE_URL`: public origin used in Stripe success/cancel URLs.
+- `SUPERADMIN_BOOTSTRAP_TOKEN_HASH`: SHA-256 hash of the one-time bootstrap token for the first superadmin.
+- `PREMIUM_ED25519_PRIVATE_KEY_PEM`: Ed25519 private key used to sign desktop entitlements.
+- `GITHUB_TOKEN`: optional token used to inspect GitHub Releases assets and private release metadata.
+- `NOVASENTINEL_BACKUP_INTERVAL_HOURS`: SQLite backup interval, default `24`.
+- `NOVASENTINEL_BACKUP_RETENTION`: number of SQLite backups to keep, default `14`.
+- `NOVASENTINEL_DISABLE_DB_BACKUPS=1`: disables scheduled local backups.
+
+The IT Admin Console itself is a separate downloadable app for fleet managers. It should run on the customer's side and can optionally sync with NovaSentinel hosted services.
+
+## Superadmin dashboard
+
+The hosted service also needs a NovaSentinel-only Superadmin dashboard. It is not part of the customer IT portal and must be deployed behind a separate internal authentication boundary.
+
+The first account can become `superadmin` only during a secure bootstrap flow:
+
+1. Backend starts with no admin account in the database.
+2. Deployment provides a one-time secret through `SUPERADMIN_BOOTSTRAP_TOKEN_HASH`.
+3. `/api/setup/superadmin` is available only while no admin exists and only when the deployment token hash exists.
+4. The submitted bootstrap token is hashed and compared server-side.
+5. The password is hashed with a slow password hasher and MFA enrollment is required.
+6. The account is created as `superadmin`, an append-only audit event is written, and bootstrap mode is permanently disabled.
+
+The frontend can display the setup and dashboard states, but it never decides that a user is superadmin on its own. `/api/dashboard/superadmin` and sensitive actions check the server-side role.
+
+Security controls enabled by default:
+
+- rate limiting on login, bootstrap, organization claim, and Premium activation;
+- temporary lockout after repeated password, MFA, bootstrap, claim, or activation failures;
+- CSRF token required for every superadmin mutation;
+- `Secure` session cookies automatically when `PUBLIC_BASE_URL` is HTTPS or `NODE_ENV=production`;
+- HTTP security headers including CSP, frame blocking, nosniff, referrer policy, and HSTS in production;
+- append-only SQLite audit log enforced with triggers;
+- scheduled SQLite backups in `premium_cloud/data/backups/`.
+
+## Production payment flow
+
+1. Buyer selects the number of Premium seats on this site.
+2. Frontend calls `POST /api/checkout/sessions`, which creates a real Stripe Checkout Session.
+3. Stripe handles payment.
+4. Backend listens on `POST /api/stripe/webhook` and verifies the Stripe signature.
+5. Only after `checkout.session.completed` does the backend create the organization license key and invite/claim path.
+6. Backend signs NovaSentinel entitlements with the private Ed25519 key.
+
+The private signing key and Stripe secret key must never be shipped in frontend code or the desktop app.
+
+## API surface
+
+- `GET /api/health`: service/database status.
+- `POST /api/setup/superadmin`: first superadmin creation, guarded by `SUPERADMIN_BOOTSTRAP_TOKEN_HASH`.
+- `POST /api/login` then `POST /api/login/verify`: password plus TOTP, creates an HTTP-only session.
+- `POST /api/checkout/sessions`: creates a real Stripe Checkout Session.
+- `POST /api/stripe/webhook`: confirms payment and creates organization/license.
+- `POST /api/organizations/claim`: first customer admin claims an active license.
+- `POST /api/premium/verify`: desktop app verifies a license key, consumes/updates one seat, and receives a signed entitlement.
+- `GET /api/dashboard/user`: customer organization metrics, licenses, activations, deployment payload.
+- `GET /api/dashboard/superadmin`: internal metrics, licenses, releases, audit log.
+- `POST /api/superadmin/licenses/issue`: manually issues a Premium license as an audited superadmin action, useful for local testing, offline sales, or support.
+- `POST /api/superadmin/licenses/:id/revoke`: revokes a license and writes audit.
+- `POST /api/superadmin/licenses/:id/resign`: increments entitlement version and writes audit.
+- `POST /api/superadmin/releases/inspect-github-url`: inspects a GitHub Release asset URL, reads release metadata, downloads the asset server-side, and returns version, notes, URL, size, and SHA-256.
+- `POST /api/superadmin/releases/publish`: publishes a release with either an uploaded installer or an external installer URL, computes SHA-256 for uploads, and writes audit.
+- `GET /api/releases/latest?channel=stable&current_version=0.1.3`: public release lookup for NovaSentinel desktop update checks.
+- `GET /api/superadmin/audit/export`: exports audit events as JSON.
+- `POST /api/superadmin/backups/create`: creates an immediate SQLite backup as an audited superadmin action.
+
+Uploaded installers are stored under `premium_cloud/data/release_uploads/` and served through `/release-downloads/<file>`.
