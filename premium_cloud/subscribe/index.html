@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acheter Premium - NovaSentinel</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body class="portal-page">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="NovaSentinel">
+        <img src="/assets/novasentinel_icon.png" alt="" />
+        <span>NovaSentinel</span>
+      </a>
+      <div class="header-actions">
+        <nav class="nav-anchors" aria-label="Ancres de page" data-nav-anchors></nav>
+        <span class="nav-pipe" aria-hidden="true">|</span>
+        <nav class="nav-account" aria-label="Liens compte" data-nav-account></nav>
+        <div data-nav-language></div>
+      </div>
+    </header>
+
+    <main class="portal-shell">
+      <section class="section portal-hero">
+        <div class="section-head">
+          <p class="eyebrow">Plan unique</p>
+          <h1>NovaSentinel Premium</h1>
+          <p>Une seule offre, facturée au nombre de postes. La licence est créée uniquement après un webhook Stripe signé.</p>
+        </div>
+      </section>
+
+      <section class="section purchase-section">
+        <div class="purchase-layout">
+          <form id="subscriptionForm" class="purchase-form">
+            <label>Organisation<input name="org" autocomplete="organization" placeholder="Ex. MonkeyTime" required /></label>
+            <label>Email facturation<input name="email" type="email" autocomplete="email" placeholder="billing@example.com" required /></label>
+            <div class="single-plan">
+              <span>Plan</span>
+              <strong>Premium</strong>
+              <small>Toutes les options Premium. Pas de plan Pro, Business ou Enterprise.</small>
+            </div>
+            <label>Nombre de postes<input id="subscribeSeats" name="seats" type="number" min="1" max="5000" value="25" required /></label>
+            <button class="button primary" type="submit">Continuer avec Stripe</button>
+          </form>
+
+          <aside class="order-card">
+            <h3>Résumé</h3>
+            <dl>
+              <div><dt>Plan</dt><dd>Premium</dd></div>
+              <div><dt>Postes</dt><dd id="subscribeSeatSummary">25</dd></div>
+              <div><dt>Total mensuel</dt><dd id="subscribePriceSummary">300 EUR</dd></div>
+            </dl>
+            <div id="checkoutState" class="license-result"><span>Prêt à créer une session Stripe.</span></div>
+            <p class="stripe-note">En local, configurez `STRIPE_SECRET_KEY` et `STRIPE_WEBHOOK_SECRET`. Sans Stripe, utilisez l'émission manuelle depuis le dashboard superadmin.</p>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <script src="../site-nav.js"></script>
+    <script src="../portal.js"></script>
+  </body>
+</html>

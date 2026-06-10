@@ -19,6 +19,11 @@ EXPECTED_ASSET_TEMPLATE = "NovaSentinel-Setup-{version}.exe"
 MAX_INSTALLER_BYTES = 250 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 10
 NO_WINDOW_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+TRUSTED_UPDATE_DOWNLOAD_HOSTS = {
+    host.strip().lower()
+    for host in os.getenv("NOVASENTINEL_UPDATE_TRUSTED_HOSTS", "novasentinel.app").split(",")
+    if host.strip()
+}
 
 
 class UpdateError(RuntimeError):
@@ -64,7 +69,10 @@ def fetch_latest_update(current_version: str) -> UpdateInfo | None:
         },
     )
     with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+        status = getattr(response, "status", 200)
+        if status < 200 or status >= 300:
+            raise UpdateError(f"GitHub release request failed with HTTP {status}.")
+        payload = json.loads(response.read().decode("utf-8", errors="replace"))
     return update_from_release_payload(payload, current_version)
 
 
@@ -110,9 +118,17 @@ def download_update_installer(update: UpdateInfo) -> Path:
     downloaded = 0
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            status = getattr(response, "status", 200)
+            if status < 200 or status >= 300:
+                raise UpdateError(f"Installer download failed with HTTP {status}.")
             length = response.headers.get("Content-Length")
-            if length and int(length) > MAX_INSTALLER_BYTES:
-                raise UpdateError("Installer is larger than the allowed update size.")
+            if length is not None:
+                try:
+                    content_length = int(length)
+                except ValueError as exc:
+                    raise UpdateError("Installer download Content-Length header is invalid.") from exc
+                if content_length > MAX_INSTALLER_BYTES:
+                    raise UpdateError("Installer is larger than the allowed update size.")
             with temp_path.open("wb") as handle:
                 while True:
                     chunk = response.read(1024 * 1024)
@@ -191,8 +207,13 @@ def _find_release_asset(assets: Any, expected_name: str) -> dict[str, Any] | Non
 
 def _require_github_download_url(url: str) -> None:
     parsed = urlparse(url)
-    if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
-        raise UpdateError("Release asset download URL is not an expected GitHub HTTPS URL.")
-    expected_prefix = "/MonkeyTime/NovaSentinel/releases/download/"
-    if not parsed.path.startswith(expected_prefix):
+    if parsed.scheme != "https":
+        raise UpdateError("Release asset download URL must use HTTPS.")
+    if parsed.netloc.lower() == "github.com":
+        expected_prefix = "/MonkeyTime/NovaSentinel/releases/download/"
+        if parsed.path.startswith(expected_prefix):
+            return
         raise UpdateError("Release asset download URL does not match the NovaSentinel repository.")
+    if parsed.netloc.lower() in TRUSTED_UPDATE_DOWNLOAD_HOSTS and parsed.path.startswith("/release-downloads/"):
+        return
+    raise UpdateError("Release asset download URL is not an expected update host.")

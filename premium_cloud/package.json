@@ -1,0 +1,16 @@
+{
+  "name": "novasentinel-premium-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check portal.js && node --check app.js"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}
