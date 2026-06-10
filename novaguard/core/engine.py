@@ -24,6 +24,7 @@ from novaguard.core.ransomware_guard import RansomwareGuard
 from novaguard.core.realtime import RealtimeProtector
 from novaguard.core.scanner import Scanner, iter_files
 from novaguard.core.telemetry import collect_telemetry_status
+from novaguard.core.premium import load_cached_premium_state
 from novaguard.models import AppSettings, EventRecord, ScanResult
 
 
@@ -36,7 +37,8 @@ class NovaSentinelEngine:
     def __init__(self) -> None:
         ensure_bootstrap()
         self.settings: AppSettings = load_settings()
-        self.scanner = Scanner(self.settings)
+        self._premium_features = self._load_premium_features()
+        self.scanner = Scanner(self.settings, premium_features=self._premium_features)
         self.quarantine = QuarantineManager()
         self.system_quarantine_decision_callback: Callable[[dict], bool] | None = None
         self.history: list[dict] = load_json_list(HISTORY_FILE)
@@ -70,6 +72,7 @@ class NovaSentinelEngine:
             on_event=self.record_event,
             on_result=self.record_result,
             quarantine_callback=self._quarantine_file,
+            premium_features=self._premium_features,
         )
         self.ransomware_guard = RansomwareGuard(
             settings=self.settings,
@@ -82,7 +85,14 @@ class NovaSentinelEngine:
             on_result=self.record_result,
             quarantine_callback=self._quarantine_file,
             ransomware_guard=self.ransomware_guard,
+            premium_features=self._premium_features,
         )
+
+    def _load_premium_features(self) -> tuple[str, ...]:
+        try:
+            return load_cached_premium_state().features
+        except Exception:
+            return ()
 
     def start_background_services(self) -> None:
         self.realtime.start()
@@ -105,10 +115,21 @@ class NovaSentinelEngine:
 
     def refresh_runtime(self) -> None:
         self.settings = load_settings()
-        self.scanner.settings = self.settings
-        self.realtime.settings = self.settings
-        self.process_guard.settings = self.settings
-        self.ransomware_guard.refresh_settings(self.settings)
+        if hasattr(self, "scanner") and self.scanner is not None:
+            self.scanner.settings = self.settings
+        if hasattr(self, "realtime") and self.realtime is not None:
+            self.realtime.settings = self.settings
+        if hasattr(self, "process_guard") and self.process_guard is not None:
+            self.process_guard.settings = self.settings
+        if hasattr(self, "ransomware_guard") and self.ransomware_guard is not None:
+            self.ransomware_guard.refresh_settings(self.settings)
+        self._premium_features = self._load_premium_features()
+        if hasattr(self, "scanner") and self.scanner is not None:
+            self.scanner.premium_features = set(self._premium_features)
+        if hasattr(self, "realtime") and self.realtime is not None:
+            self.realtime.premium_features = set(self._premium_features)
+        if hasattr(self, "process_guard") and self.process_guard is not None:
+            self.process_guard.premium_features = set(self._premium_features)
 
     def update_settings(self, settings: AppSettings) -> None:
         self.settings = settings
@@ -258,6 +279,11 @@ class NovaSentinelEngine:
         thread.start()
 
     def _run_scan(self, label: str, targets: list[str]) -> None:
+        if not hasattr(self, "_premium_features"):
+            self._premium_features = self._load_premium_features()
+        has_full_services = hasattr(self, "realtime") and hasattr(self, "process_guard")
+        if has_full_services and self._premium_features != self._load_premium_features():
+            self.refresh_runtime()
         with self.status_lock:
             self.scan_session_id += 1
             scan_session_id = self.scan_session_id
@@ -566,6 +592,9 @@ class NovaSentinelEngine:
 
     def _enrich_post_alert(self, result: ScanResult, reason: str) -> None:
         if result.post_alert is not None:
+            return
+        features = getattr(self, "_premium_features", ())
+        if "post_alert_context" not in features:
             return
         if not result.malicious and result.score < 72:
             return

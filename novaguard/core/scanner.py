@@ -155,14 +155,25 @@ def is_file_in_use_error(error: str) -> bool:
     return any(marker in lowered for marker in markers)
 
 
-def scan_file_resiliently(path: Path, max_file_size_mb: int) -> tuple[ScanResult | None, str]:
+def scan_file_resiliently(
+    path: Path,
+    max_file_size_mb: int,
+    premium_features: set[str] | tuple[str, ...] | list[str] | None = None,
+) -> tuple[ScanResult | None, str]:
     if is_runtime_state_path(path):
         return None, ""
     last_error = ""
     attempts = 1 + (len(TEMP_RETRY_DELAYS) if is_temp_path(path) else 0)
     for attempt in range(attempts):
         try:
-            result = analyze_file(path, max_file_size_mb=max_file_size_mb)
+            try:
+                result = analyze_file(
+                    path,
+                    max_file_size_mb=max_file_size_mb,
+                    premium_features=premium_features,
+                )
+            except TypeError:
+                result = analyze_file(path, max_file_size_mb=max_file_size_mb)
         except OSError as exc:
             result = None
             last_error = str(exc)
@@ -203,8 +214,13 @@ def scan_worker_count(file_count: int | None = None) -> int:
 
 
 class Scanner:
-    def __init__(self, settings: AppSettings) -> None:
+    def __init__(
+        self,
+        settings: AppSettings,
+        premium_features: tuple[str, ...] | list[str] | set[str] | None = None,
+    ) -> None:
         self.settings = settings
+        self.premium_features = set(premium_features or [])
 
     def scan_target(
         self,
@@ -274,7 +290,17 @@ class Scanner:
                 if not is_runtime_state_path(file_path):
                     break
             discovered += 1
-            future = executor.submit(scan_file_resiliently, file_path, self.settings.max_file_size_mb)
+
+            def _scan_file_with_compat(target: Path) -> tuple[ScanResult | None, str]:
+                try:
+                    return scan_file_resiliently(target, self.settings.max_file_size_mb, self.premium_features)
+                except TypeError as exc:
+                    message = str(exc)
+                    if "premium_features" in message or "positional argument" in message or "takes" in message:
+                        return scan_file_resiliently(target, self.settings.max_file_size_mb)
+                    raise
+
+            future = executor.submit(_scan_file_with_compat, file_path)
             pending[future] = file_path
             return True
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import os
 import subprocess
@@ -187,11 +188,19 @@ TRUSTED_PUBLISHER_SUBJECTS = {
     "microsoft corporation",
 }
 TRUSTED_PUBLISHER_SCORE_CAP = 46
+LOCAL_IOC_DEFAULT_SCORE = 66
+LOCAL_IOC_MAX_SCORE = 100
+LOCAL_IOC_FEATURE = "local_ioc_lookup"
 HARD_MALICIOUS_CATEGORIES = {
     "content",
     "packed-section-name",
 }
 _SIGNATURE_CACHE: dict[tuple[str, int, int], str] = {}
+_LOCAL_IOC_CACHE: dict[str, object] = {
+    "path": "",
+    "mtime": -1.0,
+    "entries": {},
+}
 
 
 def _is_same_or_child(path: Path, root: Path) -> bool:
@@ -359,6 +368,141 @@ def _looks_like_benign_source_code(path: Path, lowered: bytes) -> bool:
     if extension in {".py", ".pyw"}:
         return any(token in lowered for token in [b"def ", b"class ", b"import ", b"from "])
     return False
+
+
+def _normalize_feature_set(
+    premium_features: set[str] | tuple[str, ...] | list[str] | None,
+) -> set[str]:
+    if premium_features is None:
+        return set()
+    return {str(feature).strip() for feature in premium_features if str(feature).strip()}
+
+
+def _normalize_sha256_hash(value: str) -> str:
+    sha = value.strip().lower()
+    if len(sha) != 64:
+        return ""
+    if any(character not in "0123456789abcdef" for character in sha):
+        return ""
+    return sha
+
+
+def _as_positive_int(value: object, default: int = LOCAL_IOC_DEFAULT_SCORE) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0, parsed)
+
+
+def _is_valid_ioc_record(record: dict[str, object]) -> bool:
+    if not _normalize_sha256_hash(str(record.get("sha256", ""))):
+        return False
+    verdict = str(record.get("verdict", "suspicious")).strip().casefold()
+    if verdict and verdict not in {"malicious", "suspicious", "clean", "benign", "unknown"}:
+        return False
+    score = _as_positive_int(record.get("score", LOCAL_IOC_DEFAULT_SCORE))
+    if score > LOCAL_IOC_MAX_SCORE:
+        score = LOCAL_IOC_MAX_SCORE
+    record["score"] = score
+    return True
+
+
+def _normalize_local_ioc_payload(payload: object) -> dict[str, dict[str, object]]:
+    entries: dict[str, dict[str, object]] = {}
+    source_entries: object
+    if isinstance(payload, dict):
+        if isinstance(payload.get("entries"), list):
+            source_entries = payload["entries"]
+        else:
+            source_entries = {
+                key: value
+                for key, value in payload.items()
+                if key not in {"updated_at", "version", "format"}
+            }
+    elif isinstance(payload, list):
+        source_entries = payload
+    else:
+        return {}
+
+    if isinstance(source_entries, dict):
+        iterable = source_entries.items()
+        for key, value in iterable:
+            if not isinstance(key, str):
+                continue
+            sha = _normalize_sha256_hash(key)
+            if not sha:
+                continue
+            if isinstance(value, dict):
+                record = dict(value)
+                record.setdefault("sha256", sha)
+                if _is_valid_ioc_record(record):
+                    entries[sha] = record
+    else:
+        for item in source_entries:
+            if not isinstance(item, dict):
+                continue
+            sha = _normalize_sha256_hash(str(item.get("sha256", "")))
+            if not sha:
+                continue
+            if _is_valid_ioc_record(item):
+                entries[sha] = dict(item)
+
+    return entries
+
+
+def _load_local_ioc_db() -> dict[str, dict[str, object]]:
+    if not config.LOCAL_IOC_DB_FILE.exists():
+        return {}
+    path = str(config.LOCAL_IOC_DB_FILE)
+    cached_path = str(_LOCAL_IOC_CACHE.get("path", ""))
+    if path == cached_path:
+        try:
+            mtime = config.LOCAL_IOC_DB_FILE.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        if isinstance(_LOCAL_IOC_CACHE.get("mtime"), float) and _LOCAL_IOC_CACHE.get("mtime") == mtime:
+            entries = _LOCAL_IOC_CACHE.get("entries")
+            if isinstance(entries, dict):
+                return entries  # type: ignore[return-value]
+
+    try:
+        payload = json.loads(config.LOCAL_IOC_DB_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    entries = _normalize_local_ioc_payload(payload)
+    try:
+        mtime = config.LOCAL_IOC_DB_FILE.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    _LOCAL_IOC_CACHE["path"] = path
+    _LOCAL_IOC_CACHE["mtime"] = mtime
+    _LOCAL_IOC_CACHE["entries"] = entries
+    return entries
+
+
+def _apply_local_ioc_result(path: Path, sha256: str, features: set[str], hits: list[DetectionHit]) -> bool:
+    if LOCAL_IOC_FEATURE not in features:
+        return False
+    if not sha256:
+        return False
+    entries = _load_local_ioc_db()
+    entry = entries.get(sha256)
+    if not entry:
+        return False
+    verdict = str(entry.get("verdict", "suspicious")).strip().casefold()
+    if verdict in {"benign", "clean"}:
+        return False
+    score = _as_positive_int(entry.get("score", LOCAL_IOC_DEFAULT_SCORE))
+    add_hit(
+        hits,
+        "local-ioc-hit",
+        min(score, LOCAL_IOC_MAX_SCORE),
+        str(entry.get("explanation", "Local intelligence database match.")),
+        f"sha256:{sha256}",
+        source="local-intel",
+    )
+    return True
 
 
 def is_benign_python_artifact(path: Path) -> bool:
@@ -529,7 +673,12 @@ def analyze_pe(path: Path, hits: list[DetectionHit]) -> None:
         pe.close()
 
 
-def analyze_file(path: str | Path, max_file_size_mb: int = 64) -> ScanResult | None:
+def analyze_file(
+    path: str | Path,
+    max_file_size_mb: int = 64,
+    premium_features: set[str] | tuple[str, ...] | list[str] | None = None,
+) -> ScanResult | None:
+    features = _normalize_feature_set(premium_features)
     target = Path(path)
     if is_runtime_state_candidate(target):
         return None
@@ -544,7 +693,12 @@ def analyze_file(path: str | Path, max_file_size_mb: int = 64) -> ScanResult | N
     if size > max_file_size_mb * 1024 * 1024:
         return None
 
+    try:
+        sha256 = compute_sha256(target) if LOCAL_IOC_FEATURE in features else ""
+    except OSError:
+        sha256 = ""
     hits: list[DetectionHit] = []
+    known_ioc_match = _apply_local_ioc_result(target, sha256, features, hits)
     sample = read_sample(target)
     analyze_extension(target, hits)
     analyze_location(target, hits)
@@ -559,10 +713,11 @@ def analyze_file(path: str | Path, max_file_size_mb: int = 64) -> ScanResult | N
     score = apply_trusted_publisher_cap(target, score, hits)
     severity, malicious = classify_severity(score)
 
-    try:
-        sha256 = compute_sha256(target)
-    except OSError:
-        sha256 = ""
+    if not sha256:
+        try:
+            sha256 = compute_sha256(target)
+        except OSError:
+            sha256 = ""
 
     result = ScanResult(
         path=str(target),
@@ -575,6 +730,8 @@ def analyze_file(path: str | Path, max_file_size_mb: int = 64) -> ScanResult | N
         scanned_at=datetime.now().isoformat(timespec="seconds"),
         hits=hits,
     )
+    if known_ioc_match:
+        result.malicious = True
     result.attack = correlate_scan_result(result)
     result.xai = explain_scan_result(result)
     return result

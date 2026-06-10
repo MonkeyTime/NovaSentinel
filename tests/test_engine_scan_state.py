@@ -52,6 +52,7 @@ def test_realtime_result_does_not_pollute_scan_center_counter(monkeypatch):
     monkeypatch.setattr(engine_module, "save_json_list", lambda path, items: None)
     monkeypatch.setattr(engine_module, "collect_post_alert_context", lambda path, score, reason: {"matched_process_count": 0})
     engine = _engine_without_services()
+    engine._premium_features = ("post_alert_context",)
 
     engine.record_result(_malicious_result())
 
@@ -65,6 +66,7 @@ def test_finished_scan_resets_dynamic_counters_but_keeps_summary(monkeypatch):
     monkeypatch.setattr(engine_module, "save_json_list", lambda path, items: None)
     monkeypatch.setattr(engine_module, "collect_post_alert_context", lambda path, score, reason: {"matched_process_count": 1})
     engine = _engine_without_services()
+    engine._premium_features = ("post_alert_context",)
     result = _malicious_result(r"C:\Temp\scan-threat.ps1")
 
     class FakeScanner:

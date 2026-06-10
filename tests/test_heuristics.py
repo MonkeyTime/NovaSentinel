@@ -1,4 +1,6 @@
 import threading
+import hashlib
+import json
 from pathlib import Path
 
 import novaguard.core.heuristics as heuristics_module
@@ -235,6 +237,60 @@ def test_python_bytecode_is_ignored(tmp_path: Path):
 
     assert is_benign_python_artifact(sample) is True
     assert analyze_file(sample, max_file_size_mb=2) is None
+
+
+def test_local_ioc_lookup_marks_hash_hit(tmp_path: Path, monkeypatch):
+    sample = tmp_path / "loader.exe"
+    sample.write_bytes(b"MZ" + b"malicious-payload")
+    payload = {
+        "entries": [
+            {
+                "sha256": hashlib.sha256(sample.read_bytes()).hexdigest(),
+                "verdict": "malicious",
+                "score": 80,
+                "explanation": "Local IOC test fixture.",
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        heuristics_module.config,
+        "LOCAL_IOC_DB_FILE",
+        tmp_path / "local_ioc_db.json",
+    )
+    (tmp_path / "local_ioc_db.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    result = analyze_file(sample, max_file_size_mb=2, premium_features={"local_ioc_lookup"})
+
+    assert result is not None
+    assert result.malicious is True
+    assert any(hit.category == "local-ioc-hit" for hit in result.hits)
+
+
+def test_local_ioc_lookup_is_ignored_without_feature(tmp_path: Path, monkeypatch):
+    sample = tmp_path / "loader.exe"
+    sample.write_bytes(b"MZ" + b"benign-payload")
+    payload = {
+        "entries": [
+            {
+                "sha256": hashlib.sha256(sample.read_bytes()).hexdigest(),
+                "verdict": "malicious",
+                "score": 80,
+                "explanation": "Local IOC test fixture.",
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        heuristics_module.config,
+        "LOCAL_IOC_DB_FILE",
+        tmp_path / "local_ioc_db.json",
+    )
+    (tmp_path / "local_ioc_db.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    result = analyze_file(sample, max_file_size_mb=2)
+
+    assert result is not None
+    assert result.malicious is False
+    assert all(hit.category != "local-ioc-hit" for hit in result.hits)
 
 
 def test_scanner_skips_python_cache_files(tmp_path: Path):

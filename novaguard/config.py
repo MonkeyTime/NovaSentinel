@@ -24,6 +24,11 @@ SYSTEM_QUARANTINE_DECISIONS_FILE = STATE_DIR / "system_quarantine_decisions.json
 CANARY_DIR = STATE_DIR / "canaries"
 RECOVERY_DIR = STATE_DIR / "recovery_vault"
 LOCKDOWN_STATE_FILE = STATE_DIR / "lockdown_state.json"
+LOCAL_IOC_DB_FILE = STATE_DIR / "local_ioc_db.json"
+PREMIUM_DIR = STATE_DIR / "premium"
+PREMIUM_DEVICE_FILE = PREMIUM_DIR / "device.json"
+PREMIUM_ENTITLEMENT_FILE = PREMIUM_DIR / "entitlement.json"
+PREMIUM_DEPLOYMENT_FILE = PREMIUM_DIR / "deployment.json"
 JSON_WRITE_RETRY_DELAYS = (0.05, 0.15, 0.35, 0.75)
 _JSON_WRITE_LOCK = threading.RLock()
 
@@ -104,7 +109,7 @@ def _prune_legacy_default_exclusions(exclusions: list[str]) -> list[str]:
 
 
 def ensure_runtime_dirs() -> None:
-    for directory in [STATE_DIR, QUARANTINE_DIR, LOG_DIR, CANARY_DIR, RECOVERY_DIR]:
+    for directory in [STATE_DIR, QUARANTINE_DIR, LOG_DIR, CANARY_DIR, RECOVERY_DIR, PREMIUM_DIR]:
         directory.mkdir(parents=True, exist_ok=True)
 
 

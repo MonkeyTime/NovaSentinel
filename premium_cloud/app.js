@@ -3,23 +3,9 @@ const languageStorageKey = "novasentinel_premium_language";
 
 const premiumFeatures = [
   "premium_updates",
-  "detection_rule_updates",
-  "cloud_reputation",
-  "privacy_mode",
-  "advanced_ransomware",
-  "advanced_behavior",
-  "forensics_pro",
-  "advanced_scheduling",
-  "fleet_console",
-  "admin_console_download",
-  "mass_deployment",
-  "bulk_license_management",
-  "preconfiguration_packages",
-  "enterprise_mode",
-  "silent_install",
-  "deployment_grouping",
-  "license_csv_export",
-  "deployment_audit",
+  "beta_channel",
+  "local_ioc_lookup",
+  "post_alert_context",
 ];
 
 const translations = {

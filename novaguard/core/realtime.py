@@ -29,12 +29,14 @@ class RealtimeProtector:
         on_result: ResultCallback,
         quarantine_callback: Callable[[str, str, int], dict | None],
         ransomware_guard: RansomwareGuard,
+        premium_features: tuple[str, ...] | list[str] | set[str] | None = None,
     ) -> None:
         self.settings = settings
         self.on_event = on_event
         self.on_result = on_result
         self.quarantine_callback = quarantine_callback
         self.ransomware_guard = ransomware_guard
+        self.premium_features = set(premium_features or [])
         self.observers: list[Observer] = []
         self.queue: queue.Queue[str] = queue.Queue()
         self.stop_event = threading.Event()
@@ -134,7 +136,11 @@ class RealtimeProtector:
             previous = self.last_scanned.get(path, 0.0)
             if now - previous < 2.0:
                 continue
-            result, error = scan_file_resiliently(Path(path), max_file_size_mb=self.settings.max_file_size_mb)
+            result, error = scan_file_resiliently(
+                Path(path),
+                max_file_size_mb=self.settings.max_file_size_mb,
+                premium_features=self.premium_features,
+            )
             self.last_scanned[path] = now
             if error:
                 self._handle_scan_error(path, error)

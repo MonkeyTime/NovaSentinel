@@ -71,11 +71,13 @@ class ProcessGuard:
         on_result: ResultCallback,
         quarantine_callback: Callable[[str, str, int], dict | None],
         lockdown_manager: FolderLockdownManager | None = None,
+        premium_features: tuple[str, ...] | list[str] | set[str] | None = None,
     ) -> None:
         self.settings = settings
         self.on_event = on_event
         self.on_result = on_result
         self.quarantine_callback = quarantine_callback
+        self.premium_features = set(premium_features or [])
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
         self.seen_pids: set[int] = set()
@@ -159,7 +161,11 @@ class ProcessGuard:
                 evidence.extend(wsl_evidence)
                 if not exe or not Path(exe).exists():
                     continue
-                result = analyze_file(exe, max_file_size_mb=self.settings.max_file_size_mb)
+                result = analyze_file(
+                    exe,
+                    max_file_size_mb=self.settings.max_file_size_mb,
+                    premium_features=self.premium_features,
+                )
                 if not result:
                     continue
                 result.score = min(100, result.score + risk)
