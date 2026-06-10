@@ -6,6 +6,7 @@ const state = {
   language: getLanguage(),
   view: "overview",
   config: loadConfig(),
+  licenseInfo: null,
   cloud: {
     ok: false,
     message: ""
@@ -17,7 +18,7 @@ const state = {
 function loadConfig() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(CONFIG_KEY) || "{}");
-  return {
+    return {
       cloudUrl: typeof parsed.cloudUrl === "string" ? parsed.cloudUrl : "",
       organizationKey: typeof parsed.organizationKey === "string" ? parsed.organizationKey : "",
       installerUrl: typeof parsed.installerUrl === "string" ? parsed.installerUrl : "",
@@ -67,11 +68,15 @@ function isHttpUrl(value) {
   }
 }
 
-function hasDeploymentConfig() {
+function hasDeploymentConfig(mode = state.config.deploymentMode || "install") {
+  if (!state.config.cloudUrl || !state.config.organizationKey) {
+    return false;
+  }
+  if (mode === "config") {
+    return true;
+  }
   return Boolean(
-    state.config.cloudUrl
-      && state.config.organizationKey
-      && state.config.installerUrl
+    state.config.installerUrl
       && validSha256(state.config.installerSha256)
       && isHttpUrl(state.config.cloudUrl)
       && isHttpUrl(state.config.installerUrl)
@@ -91,11 +96,17 @@ function downloadText(filename, text, type) {
 }
 
 function packagePayload() {
+  const cloudDeployment = state.licenseInfo?.deployment?.premium_deployment_json || {};
+  const remoteLicense = String(
+    cloudDeployment.license_key || cloudDeployment.premium_key || cloudDeployment.key || state.config.organizationKey,
+  ).trim();
+
   return {
     product: "NovaSentinel",
     package_type: "premium_mass_deployment",
     cloud_url: state.config.cloudUrl,
-    premium_key: state.config.organizationKey,
+    license_key: remoteLicense || state.config.organizationKey,
+    premium_deployment_json: remoteLicense ? { ...cloudDeployment, license_key: remoteLicense } : { license_key: state.config.organizationKey },
     installer_url: state.config.installerUrl,
     installer_sha256: state.config.installerSha256,
     deployment_group: state.config.groupName || "default",
@@ -104,8 +115,37 @@ function packagePayload() {
   };
 }
 
+function maskLicenseKey(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return "";
+  if (cleaned.length <= 10) return "*".repeat(cleaned.length);
+  return `${cleaned.slice(0, 4)}...${cleaned.slice(-4)}`;
+}
+
+function hasLicenseInfo() {
+  return Boolean(state.licenseInfo && state.licenseInfo.ok);
+}
+
+function applyCloudLicenseInfo(info, updateInstaller = false) {
+  if (!info || !info.ok) {
+    return false;
+  }
+  state.licenseInfo = info;
+  if (updateInstaller) {
+    if (info.release?.installer_url) state.config.installerUrl = info.release.installer_url;
+    if (info.release?.sha256) state.config.installerSha256 = info.release.sha256;
+    if (state.config.groupName === "default") state.config.groupName = info.organization?.name || "default";
+    if (info.deployment?.premium_deployment_json?.license_key) {
+      state.config.organizationKey = info.deployment.premium_deployment_json.license_key;
+    }
+  }
+  saveConfig();
+  return true;
+}
+
 function deploymentScript() {
-  if (!hasDeploymentConfig()) {
+  const mode = state.config.deploymentMode || "install";
+  if (!hasDeploymentConfig(mode)) {
     return "";
   }
 
@@ -114,7 +154,6 @@ function deploymentScript() {
   const shouldUpdate = state.config.deploymentMode === "update";
   const download = [
     `$cloudUrl = '${state.config.cloudUrl.replaceAll("'", "''")}'`,
-    `$premiumKey = '${state.config.organizationKey.replaceAll("'", "''")}'`,
     `$installerUrl = '${state.config.installerUrl.replaceAll("'", "''")}'`,
     `$installerSha256 = '${state.config.installerSha256.toLowerCase().trim()}'`,
     `$deploymentMode = '${state.config.deploymentMode || "install"}'`,
@@ -133,12 +172,14 @@ function deploymentScript() {
     payload,
     "'@ | Set-Content -LiteralPath $configPath -Encoding UTF8",
     shouldInstall ? "$installer = Join-Path $env:TEMP 'NovaSentinel-Setup.exe'" : "# Preconfiguration mode: installer download skipped.",
-    shouldInstall ? "$expectedSha256 = $InstallerSha256.ToLower()" : "",
+    shouldInstall ? "$expectedSha256 = $installerSha256.ToLower()" : "",
     shouldInstall ? "Invoke-WebRequest -Uri $installerUrl -OutFile $installer -UseBasicParsing" : "",
     shouldInstall ? "$actualSha256 = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLower()" : "",
     shouldInstall ? "if ($actualSha256 -ne $expectedSha256) { Write-Error ('Empreinte SHA-256 invalide: ' + $actualSha256 + ' != ' + $expectedSha256); exit 1 }" : "",
-    shouldInstall ? `$arguments = '/quiet /norestart /premium-config=\"' + $configPath + '\"${shouldUpdate ? " /update" : ""}'` : "",
-    shouldInstall ? "Start-Process -FilePath $installer -ArgumentList $arguments -Wait -WindowStyle Hidden" : "",
+    shouldInstall ? "$installArgs = @('/quiet', '/norestart', '/premium-config=' + $configPath)" : "",
+    shouldUpdate ? "$installArgs += '/update'" : "",
+    shouldInstall ? "Start-Process -FilePath $installer -ArgumentList $installArgs -Wait -WindowStyle Hidden" : "",
+    shouldInstall ? "if ($LASTEXITCODE -ne 0) { Exit $LASTEXITCODE }" : "",
     "Write-Host 'NovaSentinel Premium deployment prepared.'"
   ].filter(Boolean).join("\n");
 }
@@ -227,9 +268,14 @@ function renderOverview() {
       <button class="primary-button" data-view="deployment" type="button">${escapeHtml(t("prepareDeployment", state.language))}</button>
     </div>
     <div class="metrics-grid">
-      ${metric(t("cloudConnection", state.language), state.cloud.ok ? t("connected", state.language) : t("disconnected", state.language), state.cloud.message || t("testConnection", state.language))}
-      ${metric(t("organizationKey", state.language), state.config.organizationKey ? t("configured", state.language) : t("notConfigured", state.language), t("premiumOnly", state.language))}
-      ${metric(t("installerUrl", state.language), state.config.installerUrl ? t("configured", state.language) : t("notConfigured", state.language), t("massDeployment", state.language))}
+    ${metric(t("cloudConnection", state.language), state.cloud.ok ? t("connected", state.language) : t("disconnected", state.language), state.cloud.message || t("testConnection", state.language))}
+    ${metric(t("organizationKey", state.language), state.config.organizationKey ? t("configured", state.language) : t("notConfigured", state.language), t("premiumOnly", state.language))}
+    ${metric(t("installerUrl", state.language), state.config.installerUrl ? t("configured", state.language) : t("notConfigured", state.language), t("massDeployment", state.language))}
+    ${metric(
+      t("licenseSummary", state.language),
+      hasLicenseInfo() ? t("licenseActive", state.language) : t("notConfigured", state.language),
+      hasLicenseInfo() ? `${t("seats", state.language)}: ${state.licenseInfo.license?.active_seats || 0}/${state.licenseInfo.license?.seats || 0}` : t("noLicenseData", state.language),
+    )}
     </div>
     <section class="action-board">
       <button class="action-tile" data-view="settings" type="button">
@@ -265,7 +311,10 @@ function renderDeployment() {
         <h2>${escapeHtml(t("massDeployment", state.language))}</h2>
         <p>${escapeHtml(t("deploymentText", state.language))}</p>
       </div>
-      <button class="ghost-button" data-action="generate-script" type="button">${escapeHtml(t("generateScript", state.language))}</button>
+      <div class="button-row">
+        <button class="secondary-button" data-action="sync-license" type="button" ${state.config.cloudUrl && state.config.organizationKey ? "" : "disabled"}>${escapeHtml(t("syncFromCloud", state.language))}</button>
+        <button class="ghost-button" data-action="generate-script" type="button">${escapeHtml(t("generateScript", state.language))}</button>
+      </div>
     </div>
     ${renderConfigForm("deployment")}
     <section class="wide-panel">
@@ -285,27 +334,50 @@ function renderDeployment() {
 }
 
 function renderLicenses() {
+  const hasLicense = hasLicenseInfo();
+  const license = hasLicense ? state.licenseInfo.license || {} : {};
+  const org = hasLicense ? state.licenseInfo.organization || {} : {};
+  const release = hasLicense ? state.licenseInfo.release || {} : {};
   return `
     <div class="page-heading">
       <div>
         <h2>${escapeHtml(t("licenseOperations", state.language))}</h2>
         <p>${escapeHtml(t("premiumOnlyText", state.language))}</p>
       </div>
-      <button class="ghost-button" data-action="test-cloud" type="button">${escapeHtml(t("refresh", state.language))}</button>
+      <button class="ghost-button" data-action="check-license" type="button">${escapeHtml(t("refresh", state.language))}</button>
     </div>
     <section class="wide-panel split-panel">
       <div>
         <h3>${escapeHtml(t("licensePool", state.language))}</h3>
-        <div class="empty-state compact">
-          <strong>${escapeHtml(t("noLicenseData", state.language))}</strong>
-          <span>${escapeHtml(t("endpointRequired", state.language))}</span>
-        </div>
+        ${hasLicense
+          ? `
+            <div class="license-summary">
+              <div>${escapeHtml(t("organization", state.language))} : ${escapeHtml(org.name || t("notConfigured", state.language))}</div>
+              <div>${escapeHtml(t("licenseStatus", state.language))} : ${escapeHtml(license.status || "inactive")}</div>
+              <div>${escapeHtml(t("licenseId", state.language))} : ${escapeHtml(String(license.id || ""))}</div>
+              <div>${escapeHtml(t("licenseKeyMasked", state.language))} : ${escapeHtml(maskLicenseKey(state.config.organizationKey) || "—")}</div>
+              <div>${escapeHtml(t("plan", state.language))} : ${escapeHtml(String(license.plan || "premium"))}</div>
+              <div>${escapeHtml(t("seats", state.language))} : ${escapeHtml(`${license.active_seats || 0}/${license.seats || 0}`)} (${escapeHtml(`${state.licenseInfo.available_seats || 0}`)} disponibles)</div>
+              <div>${escapeHtml(t("expiration", state.language))} : ${escapeHtml(license.entitlement_expires_at || "n/a")}</div>
+              <div>${escapeHtml(t("channel", state.language))} : ${escapeHtml(license.channel || "stable")}</div>
+            </div>
+            <div>${escapeHtml(t("lastRelease", state.language))} : ${escapeHtml(release.version || t("notConfigured", state.language))}</div>
+            <div>${escapeHtml(t("lastReleaseUrl", state.language))} : ${escapeHtml(release.installer_url || t("notConfigured", state.language))}</div>
+          `
+          : `
+            <div class="empty-state compact">
+              <strong>${escapeHtml(t("noLicenseData", state.language))}</strong>
+              <span>${escapeHtml(t("endpointRequired", state.language))}</span>
+            </div>
+          `}
       </div>
       <div>
         <h3>${escapeHtml(t("quickActions", state.language))}</h3>
         <div class="stacked-actions">
           <button class="secondary-button" data-action="copy-key" type="button" ${state.config.organizationKey ? "" : "disabled"}>${escapeHtml(t("copyKey", state.language))}</button>
+          <button class="secondary-button" data-action="sync-license" type="button" ${state.config.cloudUrl ? "" : "disabled"}>${escapeHtml(t("syncFromCloud", state.language))}</button>
           <button class="secondary-button" data-action="download-csv" type="button">${escapeHtml(t("downloadCsv", state.language))}</button>
+          <button class="secondary-button" data-action="download-config" type="button" ${hasLicense ? "" : "disabled"}>${escapeHtml(t("downloadConfig", state.language))}</button>
         </div>
       </div>
     </section>
@@ -425,6 +497,46 @@ async function testCloudConnection() {
   }
 }
 
+async function loadLicenseInfo(fromCloudInstaller = false) {
+  if (!state.config.cloudUrl || !isHttpUrl(state.config.cloudUrl)) {
+    showToast(t("connectionFailed", state.language));
+    return;
+  }
+  if (!state.config.organizationKey) {
+    showToast(t("missingDeploymentConfig", state.language));
+    return;
+  }
+  try {
+    const result = await fetch("/api/cloud/license-info", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cloudUrl: state.config.cloudUrl,
+        licenseKey: state.config.organizationKey,
+      }),
+    });
+    const data = await result.json();
+    if (!result.ok || !data.ok) {
+      state.licenseInfo = null;
+      state.cloud.ok = false;
+      state.cloud.message = t("connectionFailed", state.language);
+      const reason = data.error || "invalidCloud";
+      if (reason === "missing_cloud_url" || reason === "unsupported_cloud_url" || reason === "missing_cloud_request_data" || reason === "cloud_host_not_allowed") {
+        state.cloud.ok = false;
+      }
+      throw new Error(reason);
+    }
+    applyCloudLicenseInfo(data, fromCloudInstaller);
+    state.cloud.ok = true;
+    state.cloud.message = t("licenseLoaded", state.language);
+    showToast(t("licenseLoaded", state.language));
+    renderShell();
+  } catch (error) {
+    state.licenseInfo = null;
+    showToast(error.message || t("connectionFailed", state.language));
+  }
+}
+
 function generateScript() {
   state.script = deploymentScript();
   showToast(state.script ? t("scriptReady", state.language) : t("missingDeploymentConfig", state.language));
@@ -479,6 +591,16 @@ function bindEvents() {
       return;
     }
 
+    if (target.dataset.action === "check-license") {
+      await loadLicenseInfo(false);
+      return;
+    }
+
+    if (target.dataset.action === "sync-license") {
+      await loadLicenseInfo(true);
+      return;
+    }
+
     if (target.dataset.action === "generate-script") {
       generateScript();
       return;
@@ -523,10 +645,17 @@ function bindEvents() {
     }
     event.preventDefault();
     updateConfigFromForm(form);
+    state.licenseInfo = null;
     state.script = "";
     showToast(t("saved", state.language));
+    if (state.config.cloudUrl && state.config.organizationKey) {
+      loadLicenseInfo(false);
+    }
   });
 }
 
 bindEvents();
 renderShell();
+if (state.config.cloudUrl && state.config.organizationKey) {
+  loadLicenseInfo(false);
+}

@@ -5,7 +5,7 @@ export const LANGUAGES = [
   { code: "de", label: "Deutsch", dir: "ltr" },
   { code: "it", label: "Italiano", dir: "ltr" },
   { code: "pt", label: "Português", dir: "ltr" },
-  { code: "ar", label: "العربية", dir: "rtl" }
+  { code: "ar", label: "العربية", dir: "rtl" },
 ];
 
 export const DEFAULT_LANGUAGE = "fr";
@@ -43,7 +43,8 @@ const translations = {
     connectionFailed: "Connexion impossible.",
     readiness: "Préparation",
     massDeployment: "Déploiement de masse",
-    deploymentText: "Générez un script PowerShell propre pour GPO, Intune, RMM ou exécution administrateur.",
+    deploymentText:
+      "Générez un script PowerShell propre pour GPO, Intune, RMM ou exécution administrateur.",
     generateScript: "Générer le script",
     copyScript: "Copier",
     downloadScript: "Télécharger .ps1",
@@ -62,9 +63,24 @@ const translations = {
     copyKey: "Copier la clé",
     keyCopied: "Clé copiée.",
     packageBuilder: "Paquet de préconfiguration",
-    packageText: "Téléchargez un fichier JSON que les scripts et outils de déploiement peuvent déposer sur les postes.",
+    packageText:
+      "Téléchargez un fichier JSON que les scripts et outils de déploiement peuvent déposer sur les postes.",
     downloadConfig: "Télécharger JSON",
     packageReady: "Paquet téléchargé.",
+    licenseSummary: "Résumé de la licence",
+    licenseActive: "Licence active",
+    seats: "Sièges",
+    organization: "Organisation",
+    licenseStatus: "Statut",
+    licenseId: "ID licence",
+    licenseKeyMasked: "Clé",
+    plan: "Plan",
+    expiration: "Expiration",
+    channel: "Canal",
+    lastRelease: "Dernière version",
+    lastReleaseUrl: "URL de la version",
+    syncFromCloud: "Synchroniser depuis le cloud",
+    licenseLoaded: "Licence chargée depuis le cloud.",
     quickActions: "Actions rapides",
     configureCloud: "Configurer le cloud",
     prepareDeployment: "Préparer le déploiement",
@@ -73,7 +89,7 @@ const translations = {
     premiumOnlyText: "La console ne débloque rien sans une clé Premium de masse valide.",
     localOnly: "Local",
     configured: "Configuré",
-    notConfigured: "Non configuré"
+    notConfigured: "Non configuré",
   },
   en: {
     appName: "NovaSentinel Admin Console",
@@ -88,7 +104,8 @@ const translations = {
     connected: "Cloud connected",
     disconnected: "Cloud disconnected",
     cloudConnection: "Premium Cloud connection",
-    cloudConnectionText: "Connect this console to the hosted NovaSentinel portal to prepare deployments and manage bulk licenses.",
+    cloudConnectionText:
+      "Connect this console to the hosted NovaSentinel portal to prepare deployments and manage bulk licenses.",
     cloudUrl: "Portal URL",
     organizationKey: "Bulk Premium key",
     installerUrl: "NovaSentinel installer URL",
@@ -105,7 +122,8 @@ const translations = {
     connectionFailed: "Unable to connect.",
     readiness: "Readiness",
     massDeployment: "Mass deployment",
-    deploymentText: "Generate a clean PowerShell script for GPO, Intune, RMM, or administrator execution.",
+    deploymentText:
+      "Generate a clean PowerShell script for GPO, Intune, RMM, or administrator execution.",
     generateScript: "Generate script",
     copyScript: "Copy",
     downloadScript: "Download .ps1",
@@ -127,15 +145,30 @@ const translations = {
     packageText: "Download a JSON file that scripts and deployment tools can place on endpoints.",
     downloadConfig: "Download JSON",
     packageReady: "Package downloaded.",
+    licenseSummary: "License summary",
+    licenseActive: "License active",
+    seats: "Seats",
+    organization: "Organization",
+    licenseStatus: "Status",
+    licenseId: "License ID",
+    licenseKeyMasked: "Key",
+    plan: "Plan",
+    expiration: "Expiration",
+    channel: "Channel",
+    lastRelease: "Latest release",
+    lastReleaseUrl: "Release URL",
+    syncFromCloud: "Sync from cloud",
+    licenseLoaded: "License loaded from cloud.",
     quickActions: "Quick actions",
     configureCloud: "Configure cloud",
     prepareDeployment: "Prepare deployment",
     manageLicenses: "Manage licenses",
     premiumOnly: "Premium only",
-    premiumOnlyText: "The console unlocks nothing without a valid bulk Premium key.",
+    premiumOnlyText:
+      "The console unlocks nothing without a valid bulk Premium key.",
     localOnly: "Local",
     configured: "Configured",
-    notConfigured: "Not configured"
+    notConfigured: "Not configured",
   },
   es: {
     appName: "NovaSentinel Admin Console",
@@ -150,7 +183,8 @@ const translations = {
     connected: "Cloud conectado",
     disconnected: "Cloud desconectado",
     cloudConnection: "Conexión Premium Cloud",
-    cloudConnectionText: "Conecta esta consola al portal alojado NovaSentinel para preparar despliegues y gestionar licencias masivas.",
+    cloudConnectionText:
+      "Conecta esta consola al portal alojado NovaSentinel para preparar despliegues y gestionar licencias masivas.",
     cloudUrl: "URL del portal",
     organizationKey: "Clave Premium masiva",
     installerUrl: "URL del instalador NovaSentinel",
@@ -167,7 +201,8 @@ const translations = {
     connectionFailed: "No se pudo conectar.",
     readiness: "Preparación",
     massDeployment: "Despliegue masivo",
-    deploymentText: "Genera un script PowerShell limpio para GPO, Intune, RMM o ejecución de administrador.",
+    deploymentText:
+      "Genera un script PowerShell limpio para GPO, Intune, RMM o ejecución de administrador.",
     generateScript: "Generar script",
     copyScript: "Copiar",
     downloadScript: "Descargar .ps1",
@@ -186,18 +221,34 @@ const translations = {
     copyKey: "Copiar clave",
     keyCopied: "Clave copiada.",
     packageBuilder: "Paquete de preconfiguración",
-    packageText: "Descarga un JSON que los scripts y herramientas de despliegue pueden colocar en los equipos.",
+    packageText:
+      "Descarga un JSON que los scripts y herramientas de despliegue pueden colocar en los equipos.",
     downloadConfig: "Descargar JSON",
     packageReady: "Paquete descargado.",
+    licenseSummary: "Resumen de licencia",
+    licenseActive: "Licencia activa",
+    seats: "Asientos",
+    organization: "Organización",
+    licenseStatus: "Estado",
+    licenseId: "ID de licencia",
+    licenseKeyMasked: "Clave",
+    plan: "Plan",
+    expiration: "Caducidad",
+    channel: "Canal",
+    lastRelease: "Última versión",
+    lastReleaseUrl: "URL de versión",
+    syncFromCloud: "Sincronizar desde cloud",
+    licenseLoaded: "Licencia cargada desde cloud.",
     quickActions: "Acciones rápidas",
     configureCloud: "Configurar cloud",
     prepareDeployment: "Preparar despliegue",
     manageLicenses: "Gestionar licencias",
     premiumOnly: "Solo Premium",
-    premiumOnlyText: "La consola no desbloquea nada sin una clave Premium masiva válida.",
+    premiumOnlyText:
+      "La consola no desbloquea nada sin una clave Premium masiva válida.",
     localOnly: "Local",
     configured: "Configurado",
-    notConfigured: "No configurado"
+    notConfigured: "No configurado",
   },
   de: {
     appName: "NovaSentinel Admin Console",
@@ -212,7 +263,8 @@ const translations = {
     connected: "Cloud verbunden",
     disconnected: "Cloud getrennt",
     cloudConnection: "Premium-Cloud-Verbindung",
-    cloudConnectionText: "Verbinden Sie diese Konsole mit dem gehosteten NovaSentinel-Portal, um Bereitstellungen und Massenlizenzen zu verwalten.",
+    cloudConnectionText:
+      "Verbinden Sie diese Konsole mit dem gehosteten NovaSentinel-Portal, um Bereitstellungen und Massenlizenzen zu verwalten.",
     cloudUrl: "Portal-URL",
     organizationKey: "Premium-Massenschlüssel",
     installerUrl: "NovaSentinel-Installer-URL",
@@ -229,7 +281,8 @@ const translations = {
     connectionFailed: "Verbindung nicht möglich.",
     readiness: "Vorbereitung",
     massDeployment: "Massenbereitstellung",
-    deploymentText: "Erzeugen Sie ein sauberes PowerShell-Skript für GPO, Intune, RMM oder Admin-Ausführung.",
+    deploymentText:
+      "Erzeugen Sie ein sauberes PowerShell-Skript für GPO, Intune, RMM oder Admin-Ausführung.",
     generateScript: "Skript erzeugen",
     copyScript: "Kopieren",
     downloadScript: ".ps1 herunterladen",
@@ -248,18 +301,34 @@ const translations = {
     copyKey: "Schlüssel kopieren",
     keyCopied: "Schlüssel kopiert.",
     packageBuilder: "Vorkonfigurationspaket",
-    packageText: "JSON-Datei herunterladen, die Skripte und Deployment-Tools auf Endpoints ablegen können.",
+    packageText:
+      "JSON-Datei herunterladen, die Skripte und Deployment-Tools auf Endpoints ablegen können.",
     downloadConfig: "JSON herunterladen",
     packageReady: "Paket heruntergeladen.",
+    licenseSummary: "Lizenzübersicht",
+    licenseActive: "Lizenz aktiv",
+    seats: "Plätze",
+    organization: "Organisation",
+    licenseStatus: "Status",
+    licenseId: "Lizenz-ID",
+    licenseKeyMasked: "Schlüssel",
+    plan: "Plan",
+    expiration: "Ablauf",
+    channel: "Kanal",
+    lastRelease: "Letzte Version",
+    lastReleaseUrl: "Versions-URL",
+    syncFromCloud: "Aus Cloud synchronisieren",
+    licenseLoaded: "Lizenz aus Cloud geladen.",
     quickActions: "Schnellaktionen",
     configureCloud: "Cloud konfigurieren",
     prepareDeployment: "Bereitstellung vorbereiten",
     manageLicenses: "Lizenzen verwalten",
     premiumOnly: "Nur Premium",
-    premiumOnlyText: "Die Konsole schaltet ohne gültigen Premium-Massenschlüssel nichts frei.",
+    premiumOnlyText:
+      "Die Konsole schaltet ohne gültigen Premium-Massenschlüssel nichts frei.",
     localOnly: "Lokal",
     configured: "Konfiguriert",
-    notConfigured: "Nicht konfiguriert"
+    notConfigured: "Nicht konfiguriert",
   },
   it: {
     appName: "NovaSentinel Admin Console",
@@ -274,7 +343,8 @@ const translations = {
     connected: "Cloud connesso",
     disconnected: "Cloud disconnesso",
     cloudConnection: "Connessione Premium Cloud",
-    cloudConnectionText: "Collega questa console al portale NovaSentinel ospitato per preparare distribuzioni e gestire licenze massive.",
+    cloudConnectionText:
+      "Collega questa console al portale NovaSentinel ospitato per preparare distribuzioni e gestire licenze massive.",
     cloudUrl: "URL portale",
     organizationKey: "Chiave Premium massiva",
     installerUrl: "URL installer NovaSentinel",
@@ -291,7 +361,8 @@ const translations = {
     connectionFailed: "Connessione non riuscita.",
     readiness: "Preparazione",
     massDeployment: "Distribuzione massiva",
-    deploymentText: "Genera uno script PowerShell pulito per GPO, Intune, RMM o esecuzione amministratore.",
+    deploymentText:
+      "Genera uno script PowerShell pulito per GPO, Intune, RMM o esecuzione amministratore.",
     generateScript: "Genera script",
     copyScript: "Copia",
     downloadScript: "Scarica .ps1",
@@ -310,18 +381,34 @@ const translations = {
     copyKey: "Copia chiave",
     keyCopied: "Chiave copiata.",
     packageBuilder: "Pacchetto di preconfigurazione",
-    packageText: "Scarica un JSON che script e strumenti di distribuzione possono depositare sugli endpoint.",
+    packageText:
+      "Scarica un JSON che script e strumenti di distribuzione possono depositare sugli endpoint.",
     downloadConfig: "Scarica JSON",
     packageReady: "Pacchetto scaricato.",
+    licenseSummary: "Riepilogo licenza",
+    licenseActive: "Licenza attiva",
+    seats: "Posti",
+    organization: "Organizzazione",
+    licenseStatus: "Stato",
+    licenseId: "ID licenza",
+    licenseKeyMasked: "Chiave",
+    plan: "Piano",
+    expiration: "Scadenza",
+    channel: "Canale",
+    lastRelease: "Ultima versione",
+    lastReleaseUrl: "URL versione",
+    syncFromCloud: "Sincronizza dal cloud",
+    licenseLoaded: "Licenza caricata dal cloud.",
     quickActions: "Azioni rapide",
     configureCloud: "Configura cloud",
     prepareDeployment: "Prepara distribuzione",
     manageLicenses: "Gestisci licenze",
     premiumOnly: "Solo Premium",
-    premiumOnlyText: "La console non sblocca nulla senza una chiave Premium massiva valida.",
+    premiumOnlyText:
+      "La console non sblocca nulla senza una chiave Premium massiva valida.",
     localOnly: "Locale",
     configured: "Configurato",
-    notConfigured: "Non configurato"
+    notConfigured: "Non configurato",
   },
   pt: {
     appName: "NovaSentinel Admin Console",
@@ -336,7 +423,8 @@ const translations = {
     connected: "Cloud ligado",
     disconnected: "Cloud desligado",
     cloudConnection: "Ligação Premium Cloud",
-    cloudConnectionText: "Ligue esta consola ao portal NovaSentinel alojado para preparar implantações e gerir licenças em massa.",
+    cloudConnectionText:
+      "Ligue esta consola ao portal NovaSentinel alojado para preparar implantações e gerir licenças em massa.",
     cloudUrl: "URL do portal",
     organizationKey: "Chave Premium em massa",
     installerUrl: "URL do instalador NovaSentinel",
@@ -353,7 +441,8 @@ const translations = {
     connectionFailed: "Não foi possível ligar.",
     readiness: "Preparação",
     massDeployment: "Implantação em massa",
-    deploymentText: "Gere um script PowerShell limpo para GPO, Intune, RMM ou execução administrativa.",
+    deploymentText:
+      "Gere um script PowerShell limpo para GPO, Intune, RMM ou execução administrativa.",
     generateScript: "Gerar script",
     copyScript: "Copiar",
     downloadScript: "Transferir .ps1",
@@ -372,18 +461,34 @@ const translations = {
     copyKey: "Copiar chave",
     keyCopied: "Chave copiada.",
     packageBuilder: "Pacote de pré-configuração",
-    packageText: "Transfira um JSON que scripts e ferramentas de implantação podem colocar nos endpoints.",
+    packageText:
+      "Transfira um JSON que scripts e ferramentas de implantação podem colocar nos endpoints.",
     downloadConfig: "Transferir JSON",
     packageReady: "Pacote transferido.",
+    licenseSummary: "Resumo da licença",
+    licenseActive: "Licença ativa",
+    seats: "Assentos",
+    organization: "Organização",
+    licenseStatus: "Estado",
+    licenseId: "ID da licença",
+    licenseKeyMasked: "Chave",
+    plan: "Plano",
+    expiration: "Expiração",
+    channel: "Canal",
+    lastRelease: "Última versão",
+    lastReleaseUrl: "URL da versão",
+    syncFromCloud: "Sincronizar do cloud",
+    licenseLoaded: "Licença carregada do cloud.",
     quickActions: "Ações rápidas",
     configureCloud: "Configurar cloud",
     prepareDeployment: "Preparar implantação",
     manageLicenses: "Gerir licenças",
     premiumOnly: "Apenas Premium",
-    premiumOnlyText: "A consola não desbloqueia nada sem uma chave Premium em massa válida.",
+    premiumOnlyText:
+      "A consola não desbloqueia nada sem uma chave Premium em massa válida.",
     localOnly: "Local",
     configured: "Configurado",
-    notConfigured: "Não configurado"
+    notConfigured: "Não configurado",
   },
   ar: {
     appName: "NovaSentinel Admin Console",
@@ -398,7 +503,8 @@ const translations = {
     connected: "السحابة متصلة",
     disconnected: "السحابة غير متصلة",
     cloudConnection: "اتصال Premium Cloud",
-    cloudConnectionText: "صل هذه الوحدة ببوابة NovaSentinel المستضافة لتحضير النشر وإدارة التراخيص الجماعية.",
+    cloudConnectionText:
+      "صل هذه الوحدة ببوابة NovaSentinel المستضافة لتحضير النشر وإدارة التراخيص الجماعية.",
     cloudUrl: "رابط البوابة",
     organizationKey: "مفتاح Premium الجماعي",
     installerUrl: "رابط مثبت NovaSentinel",
@@ -415,7 +521,8 @@ const translations = {
     connectionFailed: "تعذر الاتصال.",
     readiness: "الجاهزية",
     massDeployment: "النشر الجماعي",
-    deploymentText: "أنشئ سكريبت PowerShell نظيفًا لـ GPO أو Intune أو RMM أو تشغيل المسؤول.",
+    deploymentText:
+      "أنشئ سكريبت PowerShell نظيفًا لـ GPO أو Intune أو RMM أو تشغيل المسؤول.",
     generateScript: "إنشاء السكريبت",
     copyScript: "نسخ",
     downloadScript: "تنزيل .ps1",
@@ -434,19 +541,35 @@ const translations = {
     copyKey: "نسخ المفتاح",
     keyCopied: "تم نسخ المفتاح.",
     packageBuilder: "حزمة التهيئة المسبقة",
-    packageText: "نزّل ملف JSON يمكن للسكريبتات وأدوات النشر وضعه على الأجهزة.",
+    packageText:
+      "نزّل ملف JSON يمكن للسكريبتات وأدوات النشر وضعه على الأجهزة.",
     downloadConfig: "تنزيل JSON",
     packageReady: "تم تنزيل الحزمة.",
+    licenseSummary: "ملخص الترخيص",
+    licenseActive: "الترخيص نشط",
+    seats: "المقاعد",
+    organization: "المؤسسة",
+    licenseStatus: "الحالة",
+    licenseId: "معرف الترخيص",
+    licenseKeyMasked: "المفتاح",
+    plan: "الخطة",
+    expiration: "تاريخ الانتهاء",
+    channel: "القناة",
+    lastRelease: "آخر إصدار",
+    lastReleaseUrl: "رابط الإصدار",
+    syncFromCloud: "مزامنة من السحابة",
+    licenseLoaded: "تم تحميل الترخيص من السحابة.",
     quickActions: "إجراءات سريعة",
     configureCloud: "تهيئة السحابة",
     prepareDeployment: "تحضير النشر",
     manageLicenses: "إدارة التراخيص",
     premiumOnly: "Premium فقط",
-    premiumOnlyText: "لا تفتح الوحدة أي شيء بدون مفتاح Premium جماعي صالح.",
+    premiumOnlyText:
+      "لا تفتح الوحدة أي شيء بدون مفتاح Premium جماعي صالح.",
     localOnly: "محلي",
     configured: "مهيأ",
-    notConfigured: "غير مهيأ"
-  }
+    notConfigured: "غير مهيأ",
+  },
 };
 
 export function normalizeLanguage(code) {
@@ -454,7 +577,9 @@ export function normalizeLanguage(code) {
 }
 
 export function getLanguage() {
-  return normalizeLanguage(window.localStorage.getItem(STORAGE_KEY) || navigator.language?.slice(0, 2));
+  return normalizeLanguage(
+    window.localStorage.getItem(STORAGE_KEY) || navigator.language?.slice(0, 2),
+  );
 }
 
 export function setLanguage(code) {
@@ -464,10 +589,16 @@ export function setLanguage(code) {
 }
 
 export function directionFor(code) {
-  return LANGUAGES.find((language) => language.code === normalizeLanguage(code))?.dir || "ltr";
+  return (
+    LANGUAGES.find((language) => language.code === normalizeLanguage(code))?.dir || "ltr"
+  );
 }
 
 export function t(key, language = getLanguage()) {
   const normalized = normalizeLanguage(language);
-  return translations[normalized]?.[key] || translations[DEFAULT_LANGUAGE][key] || key;
+  return (
+    translations[normalized]?.[key] ||
+    translations[DEFAULT_LANGUAGE][key] ||
+    key
+  );
 }

@@ -16,6 +16,7 @@ from novaguard.core.updater import UpdateInfo, download_update_installer, fetch_
 from novaguard.i18n import LANGUAGES, normalize_language, tr, trust_center_summary
 from novaguard.models import AppSettings
 from novaguard.research import research_summary
+from novaguard.core.premium import fetch_latest_premium_update
 
 
 ctk.set_appearance_mode("dark")
@@ -795,7 +796,14 @@ class NovaSentinelWindow(ctk.CTk):
 
     def _check_for_updates_worker(self) -> None:
         try:
-            update = fetch_latest_update(APP_VERSION)
+            premium_state = self.engine.get_premium_state()
+            if premium_state.has_feature("premium_updates"):
+                try:
+                    update = fetch_latest_premium_update(APP_VERSION)
+                except Exception:
+                    update = fetch_latest_update(APP_VERSION)
+            else:
+                update = fetch_latest_update(APP_VERSION)
         except Exception:
             update = None
         self.after(0, lambda: self._finish_update_check(update))

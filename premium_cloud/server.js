@@ -60,6 +60,7 @@ const ratePolicies = {
   claim: { limit: 10, windowSeconds: 15 * 60 },
   checkout: { limit: 12, windowSeconds: 10 * 60 },
   premiumVerify: { limit: 60, windowSeconds: 10 * 60 },
+  consoleLookup: { limit: 30, windowSeconds: 10 * 60 },
   logout: { limit: 12, windowSeconds: 10 * 60 },
 };
 
@@ -70,6 +71,7 @@ const lockPolicies = {
   claim: { failures: 8, lockSeconds: 20 * 60 },
   checkout: { failures: 8, lockSeconds: 20 * 60 },
   premiumVerify: { failures: 12, lockSeconds: 20 * 60 },
+  consoleLookup: { failures: 12, lockSeconds: 20 * 60 },
   logout: { failures: 10, lockSeconds: 5 * 60 },
 };
 
@@ -774,6 +776,72 @@ function deploymentPayload(licenseKey) {
   };
 }
 
+function maskLicenseKeyForDisplay(licenseKey) {
+  const value = String(licenseKey || "").trim();
+  if (!value) return "";
+  if (value.length <= 10) return "*".repeat(value.length);
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function resolveLicenseForConsole(licenseKey) {
+  const license = db
+    .prepare(
+      `
+      SELECT licenses.*, organizations.name AS organization_name, organizations.billing_email
+      FROM licenses
+      JOIN organizations ON organizations.id = licenses.organization_id
+      WHERE licenses.license_key = ?
+    `,
+    )
+    .get(licenseKey);
+  if (!license) {
+    return null;
+  }
+
+  const activationCount = db.prepare("SELECT COUNT(*) AS count FROM activations WHERE license_id = ?").get(license.id)?.count || 0;
+  const latestRelease = db
+    .prepare(
+      "SELECT * FROM releases WHERE channel = ? AND status = 'published' AND installer_url != '' AND sha256 != '' ORDER BY id DESC LIMIT 1",
+    )
+    .get(license.channel || "stable");
+  const availableSeats = Math.max(0, Number(license.seats || 0) - Number(activationCount || 0));
+  const release = publicRelease(latestRelease);
+  return {
+    license: {
+      id: license.id,
+      organization_id: license.organization_id,
+      license_mask: maskLicenseKeyForDisplay(license.license_key),
+      plan: license.plan,
+      seats: license.seats,
+      active_seats: activationCount,
+      status: license.status,
+      channel: license.channel || "stable",
+      entitlement_expires_at: license.entitlement_expires_at,
+      entitlement_version: license.entitlement_version || 1,
+      updated_at: license.updated_at,
+    },
+    organization: {
+      id: license.organization_id,
+      name: license.organization_name || "",
+      billing_email: license.billing_email || "",
+    },
+    deployment: deploymentPayload(license.license_key),
+    release,
+    available_seats: availableSeats,
+  };
+}
+
+function isExpiredEntitlement(expiresAt) {
+  if (!expiresAt) return false;
+  try {
+    const parsed = new Date(expiresAt);
+    if (Number.isNaN(parsed.getTime())) return true;
+    return parsed.getTime() <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 function sanitizeReleasePart(value) {
   return String(value || "")
     .trim()
@@ -1291,6 +1359,38 @@ async function handleApi(req, res, url) {
     };
     clearFailures("premiumVerify", [licenseKey, clientIp(req)]);
     return json(res, 200, { entitlement, signature: signPayload(entitlement) });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin-console/license/info") {
+    rateLimit(req, "consoleLookup");
+    const payload = await readJson(req);
+    const licenseKey = String(payload.license_key || "").trim();
+    const requestedChannel = String(payload.channel || "stable").trim().toLowerCase();
+    const channel = requestedChannel === "beta" ? "beta" : "stable";
+    if (!licenseKey) return json(res, 400, { error: "license_key_required" });
+    requireNotLocked("consoleLookup", [licenseKey, clientIp(req)]);
+    const data = resolveLicenseForConsole(licenseKey);
+    if (!data || data.license.status !== "active" || isExpiredEntitlement(data.license.entitlement_expires_at)) {
+      recordFailure("consoleLookup", [licenseKey, clientIp(req)]);
+      return json(res, 404, { error: "license_inactive_or_unknown" });
+    }
+    clearFailures("consoleLookup", [licenseKey, clientIp(req)]);
+    data.channel = channel;
+    if (data.license.channel !== channel) {
+      const releaseByChannel = db
+        .prepare(
+          "SELECT * FROM releases WHERE channel = ? AND status = 'published' AND installer_url != '' AND sha256 != '' ORDER BY id DESC LIMIT 1",
+        )
+        .get(channel);
+      data.release = publicRelease(releaseByChannel);
+    }
+    if (!data.deployment?.premium_deployment_json) {
+      data.deployment = deploymentPayload(licenseKey);
+    }
+    audit(null, "admin_console_license_lookup", "license", String(data.license.id), {
+      channel,
+    });
+    return json(res, 200, { ok: true, ...data });
   }
 
   if (req.method === "GET" && url.pathname === "/api/dashboard/user") {

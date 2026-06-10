@@ -27,7 +27,9 @@ from novaguard.core.telemetry import collect_telemetry_status
 from novaguard.core.premium import (
     PremiumState,
     activate_premium_key,
+    load_deployment_premium_key,
     load_cached_premium_state,
+    premium_key_fingerprint,
 )
 from novaguard.models import AppSettings, EventRecord, ScanResult
 
@@ -42,6 +44,7 @@ class NovaSentinelEngine:
         ensure_bootstrap()
         self.settings: AppSettings = load_settings()
         self._premium_features = self._load_premium_features()
+        self._sync_deployment_license_async()
         self.scanner = Scanner(self.settings, premium_features=self._premium_features)
         self.quarantine = QuarantineManager()
         self.system_quarantine_decision_callback: Callable[[dict], bool] | None = None
@@ -97,6 +100,26 @@ class NovaSentinelEngine:
             return load_cached_premium_state().features
         except Exception:
             return ()
+
+    def _sync_premium_from_deployment(self) -> None:
+        try:
+            key = load_deployment_premium_key()
+        except Exception:
+            return
+        if not key:
+            return
+        try:
+            current = load_cached_premium_state()
+            if current.active and current.key_fingerprint == premium_key_fingerprint(key):
+                return
+            activate_premium_key(key)
+            self.refresh_runtime()
+        except Exception:
+            return
+
+    def _sync_deployment_license_async(self) -> None:
+        thread = threading.Thread(target=self._sync_premium_from_deployment, name="PremiumDeploymentSync", daemon=True)
+        thread.start()
 
     def get_premium_state(self) -> PremiumState:
         try:

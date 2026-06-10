@@ -29,6 +29,7 @@ const securityHeaders = {
   ].join("; "),
   ...(isProduction ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" } : {}),
 };
+const maxBodyBytes = 20 * 1024 * 1024;
 
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -73,6 +74,63 @@ function send(res, status, body, headers = {}) {
 
 function sendJson(res, status, body) {
   send(res, status, body);
+}
+
+function parseCloudRequest(raw) {
+  const payload = typeof raw === "string" ? raw : "";
+  if (!payload) {
+    const error = new Error("missing_cloud_request");
+    error.statusCode = 400;
+    throw error;
+  }
+  try {
+    return JSON.parse(payload);
+  } catch {
+    const error = new Error("invalid_cloud_request");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+async function readBody(req) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > maxBodyBytes) {
+      const error = new Error("request_too_large");
+      error.statusCode = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function callCloudApi(cloudUrl, path, body, method = "POST") {
+  const endpoint = new URL(path, parseCloudUrl(cloudUrl));
+  const response = await fetch(endpoint, {
+    method,
+    headers: {
+      Accept: "application/json",
+      ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const payloadText = await response.text();
+  let payload = {};
+  try {
+    payload = payloadText ? JSON.parse(payloadText) : {};
+  } catch {
+    payload = { message: payloadText?.slice(0, 200) || "invalid json response" };
+  }
+  if (!response.ok) {
+    const error = new Error(payload.error || payload.message || `HTTP ${response.status}`);
+    error.statusCode = response.status;
+    error.payload = payload;
+    throw error;
+  }
+  return payload;
 }
 
 function parseCloudUrl(raw) {
@@ -179,6 +237,35 @@ const server = http.createServer(async (req, res) => {
         error: error.message === "missing_cloud_url" || error.message === "unsupported_cloud_url"
           ? error.message
           : "cloud_health_failed"
+      });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/cloud/license-info") {
+    try {
+      const payload = parseCloudRequest(await readBody(req));
+      const cloudUrl = String(payload.cloudUrl || "").trim();
+      const licenseKey = String(payload.licenseKey || "").trim();
+      const channel = String(payload.channel || "stable").trim().toLowerCase();
+      if (!cloudUrl || !licenseKey) {
+        sendJson(res, 400, {
+          ok: false,
+          error: "missing_cloud_request_data",
+          message: "cloudUrl and licenseKey are required.",
+        });
+        return;
+      }
+      const result = await callCloudApi(cloudUrl, "/api/admin-console/license/info", {
+        license_key: licenseKey,
+        channel,
+      });
+      sendJson(res, 200, result);
+    } catch (error) {
+      sendJson(res, error.statusCode || 500, {
+        ok: false,
+        error: error.message || "cloud_lookup_failed",
+        details: error.payload || undefined,
       });
     }
     return;

@@ -17,10 +17,11 @@ from urllib.parse import urlparse
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from novaguard import APP_VERSION
+from novaguard import APP_NAME, APP_VERSION
 from novaguard.config import (
     PREMIUM_DEPLOYMENT_FILE,
     PREMIUM_DEVICE_FILE,
+    PREMIUM_DIR,
     PREMIUM_ENTITLEMENT_FILE,
     _write_json_atomic,
     ensure_runtime_dirs,
@@ -105,8 +106,27 @@ def load_deployment_premium_key() -> str:
     env_key = os.getenv("NOVASENTINEL_PREMIUM_LICENSE_KEY", "").strip()
     if env_key:
         return env_key
-    payload = _read_json_object(PREMIUM_DEPLOYMENT_FILE)
-    return str(payload.get("license_key", "")).strip()
+    payload = _read_deployment_payload()
+    for key in ("license_key", "premium_key", "key"):
+        value = str(payload.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def _candidate_deployment_paths() -> list[Path]:
+    paths = [PREMIUM_DEPLOYMENT_FILE, PREMIUM_DIR / "premium_deployment.json"]
+    programdata = Path(os.getenv("PROGRAMDATA", str(Path.home() / "AppData" / "Local")))
+    paths.append(programdata / APP_NAME / "premium_deployment.json")
+    return paths
+
+
+def _read_deployment_payload() -> dict[str, Any]:
+    for path in _candidate_deployment_paths():
+        payload = _read_json_object(path)
+        if payload:
+            return payload
+    return {}
 
 
 def activate_premium_key(key: str) -> PremiumState:

@@ -180,6 +180,7 @@ $Installer = {json.dumps(str(installer_path))}
 $AppPid = {process_id}
 $InstallDir = {json.dumps(str(install_dir))}
 $Uninstaller = Join-Path $InstallDir "uninstall_runtime.ps1"
+$DeploymentConfig = "$env:ProgramData\\NovaSentinel\\premium_deployment.json"
 
 Start-Sleep -Milliseconds 500
 Get-Process -Id $AppPid -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -190,7 +191,11 @@ if (Test-Path -LiteralPath $Uninstaller) {{
     Start-Sleep -Milliseconds 800
 }}
 
-Start-Process -FilePath $Installer -ArgumentList @("-install-dir", $InstallDir) -Wait
+if (Test-Path -LiteralPath $DeploymentConfig) {{
+    Start-Process -FilePath $Installer -ArgumentList @("-install-dir", $InstallDir, "/update", "/quiet", "/premium-config", $DeploymentConfig) -Wait
+}} else {{
+    Start-Process -FilePath $Installer -ArgumentList @("-install-dir", $InstallDir, "/update", "/quiet") -Wait
+}}
 """
     script_path.write_text(script.strip() + "\n", encoding="utf-8")
     return script_path

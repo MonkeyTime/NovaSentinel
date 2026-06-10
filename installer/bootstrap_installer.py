@@ -169,6 +169,36 @@ def parse_install_dir(raw_dir: str | None) -> Path | None:
     return candidate
 
 
+def _premium_config_path() -> Path:
+    programdata = Path(os.getenv("PROGRAMDATA", str(Path.home() / "AppData" / "Local")))
+    return programdata / APP_NAME / "premium_deployment.json"
+
+
+def _resolve_install_language(default: str, is_quiet: bool, is_update: bool) -> str:
+    if is_update:
+        return default
+    if is_quiet:
+        return default_language()
+    return choose_language() or default
+
+
+def write_premium_deployment_file(raw_path: str | None) -> None:
+    if not raw_path:
+        return
+    config_path = Path(raw_path)
+    if not config_path.exists():
+        raise RuntimeError("Le fichier de préconfiguration est introuvable.")
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Le fichier de préconfiguration est invalide.") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("Le fichier de préconfiguration est invalide.")
+    destination = _premium_config_path()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+
+
 def write_language_preference(language: str, appdata_dir: Path | None = None) -> None:
     appdata = appdata_dir or Path(os.getenv("APPDATA", str(Path.home() / "AppData" / "Roaming")))
     state_dir = appdata / APP_NAME
@@ -285,13 +315,24 @@ def create_shortcuts(install_dir: Path) -> None:
 
 
 def install() -> int:
-    language = choose_language()
+    parser = argparse.ArgumentParser(add_help=False, prefix_chars="-/")
+    parser.add_argument("-install-dir", "--install-dir")
+    parser.add_argument("/quiet", "--quiet", action="store_true")
+    parser.add_argument("/update", "--update", action="store_true")
+    parser.add_argument("/premium-config", "--premium-config")
+    args, _extra = parser.parse_known_args()
+    language = _resolve_install_language(default_language(), args.quiet, args.update)
     if language is None:
         return 0
     text = installer_text(language)
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--install-dir")
-    args, _extra = parser.parse_known_args()
+
+    try:
+        write_premium_deployment_file(args.premium_config)
+    except Exception as exc:
+        if args.quiet:
+            return 1
+        message_box(text["title"], str(exc), 0x10)
+        return 1
 
     zip_path = resource_path("NovaSentinel.zip")
     uninstall_script = resource_path("uninstall_runtime.ps1")
@@ -304,7 +345,8 @@ def install() -> int:
         install_dir = Path(os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))) / "Programs" / APP_NAME
     install_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    stop_running_app()
+    if not args.update:
+        stop_running_app()
     shutil.rmtree(install_dir, ignore_errors=True)
     install_dir.mkdir(parents=True, exist_ok=True)
 
@@ -315,12 +357,19 @@ def install() -> int:
     create_shortcuts(install_dir)
     if create_startup_task(install_dir):
         remove_startup_shortcut()
-    write_language_preference(language)
+    if not args.quiet:
+        write_language_preference(language)
 
     exe_path = install_dir / "NovaSentinel.exe"
     try:
-        subprocess.Popen([str(exe_path)], cwd=str(install_dir), **no_window_kwargs())
+        launch_args = [] if args.quiet else [str(exe_path)]
+        if launch_args:
+            subprocess.Popen(launch_args, cwd=str(install_dir), **no_window_kwargs())
+        elif not args.update:
+            subprocess.Popen([str(exe_path), "--background"], cwd=str(install_dir), **no_window_kwargs())
     except OSError as exc:
+        if args.quiet:
+            return 1
         message_box(
             text["title"],
             text["launch_blocked"].format(error=exc),
@@ -328,7 +377,8 @@ def install() -> int:
         )
         return 0
 
-    message_box(text["title"], text["completed"], 0x40)
+    if not args.quiet:
+        message_box(text["title"], text["completed"], 0x40)
     return 0
 
 
