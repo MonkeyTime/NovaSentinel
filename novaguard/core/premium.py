@@ -63,6 +63,9 @@ class PremiumState:
     active: bool
     status: str
     license_id: str = ""
+    device_id: str = ""
+    key_mask: str = ""
+    key_fingerprint: str = ""
     plan: str = ""
     customer: str = ""
     expires_at: str = ""
@@ -164,6 +167,9 @@ def premium_state_from_signed_payload(payload: dict[str, Any], require_device_ma
         active=True,
         status=status,
         license_id=str(entitlement.get("license_id", "")),
+        device_id=str(entitlement.get("device_id", "")),
+        key_mask=str(payload.get("key_mask", "")) or str(entitlement.get("key_mask", "")),
+        key_fingerprint=str(payload.get("key_fingerprint", "")) or str(entitlement.get("key_fingerprint", "")),
         plan=plan,
         customer=str(entitlement.get("customer", "")),
         expires_at=expires_at,

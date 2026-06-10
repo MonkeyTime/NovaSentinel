@@ -24,7 +24,11 @@ from novaguard.core.ransomware_guard import RansomwareGuard
 from novaguard.core.realtime import RealtimeProtector
 from novaguard.core.scanner import Scanner, iter_files
 from novaguard.core.telemetry import collect_telemetry_status
-from novaguard.core.premium import load_cached_premium_state
+from novaguard.core.premium import (
+    PremiumState,
+    activate_premium_key,
+    load_cached_premium_state,
+)
 from novaguard.models import AppSettings, EventRecord, ScanResult
 
 
@@ -93,6 +97,17 @@ class NovaSentinelEngine:
             return load_cached_premium_state().features
         except Exception:
             return ()
+
+    def get_premium_state(self) -> PremiumState:
+        try:
+            return load_cached_premium_state()
+        except Exception as exc:
+            return PremiumState(active=False, status=str(exc))
+
+    def activate_premium_key(self, key: str) -> PremiumState:
+        state = activate_premium_key(key)
+        self.refresh_runtime()
+        return state
 
     def start_background_services(self) -> None:
         self.realtime.start()

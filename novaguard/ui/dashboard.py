@@ -59,6 +59,14 @@ class NovaSentinelWindow(ctk.CTk):
         self.settings_vars: dict[str, tk.Variable] = {}
         self.language_var = tk.StringVar(value=LANGUAGES[self.language])
         self.language_by_label = {label: code for code, label in LANGUAGES.items()}
+        self.premium_key_var = tk.StringVar(value="")
+        self.premium_status_var = tk.StringVar(value="")
+        self.premium_entitlement_var = tk.StringVar(value="")
+        self.premium_feedback_var = tk.StringVar(value="")
+        self.premium_features_var = tk.StringVar(value="")
+        self.premium_activate_button: ctk.CTkButton | None = None
+        self.premium_refresh_button: ctk.CTkButton | None = None
+        self.premium_key_entry: ctk.CTkEntry | None = None
 
         self.update_info: UpdateInfo | None = None
         self.update_button: ctk.CTkButton | None = None
@@ -146,6 +154,7 @@ class NovaSentinelWindow(ctk.CTk):
             ("Settings", "nav.settings"),
             ("Trust Center", "nav.trust"),
             ("Research", "nav.research"),
+            ("Premium", "nav.premium"),
         ]:
             nav_button = ctk.CTkButton(
                 self.sidebar,
@@ -174,6 +183,7 @@ class NovaSentinelWindow(ctk.CTk):
         self.frames["Settings"] = self._settings_view()
         self.frames["Trust Center"] = self._trust_center_view()
         self.frames["Research"] = self._research_view()
+        self.frames["Premium"] = self._premium_view()
 
     def _dashboard_view(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.content)
@@ -424,6 +434,45 @@ class NovaSentinelWindow(ctk.CTk):
         ctk.CTkButton(controls, text=self.t("settings.save"), command=self.save_settings).pack(side="left", padx=10, pady=14)
         return frame
 
+    def _premium_view(self) -> ctk.CTkFrame:
+        frame = ctk.CTkFrame(self.content)
+        ctk.CTkLabel(frame, text=self.t("premium.title"), font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w", padx=18, pady=(18, 8))
+
+        status_card = ctk.CTkFrame(frame, fg_color="#132b26")
+        status_card.pack(fill="x", padx=18, pady=(0, 12))
+        ctk.CTkLabel(status_card, text=self.t("premium.status_title"), font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=18, pady=(18, 6))
+        ctk.CTkLabel(status_card, textvariable=self.premium_status_var, justify="left", wraplength=980).pack(anchor="w", padx=18, pady=(0, 12))
+        ctk.CTkLabel(status_card, text=self.t("premium.active_features_title"), font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=18, pady=(0, 8))
+        ctk.CTkLabel(status_card, textvariable=self.premium_features_var, justify="left", wraplength=980).pack(anchor="w", padx=18, pady=(0, 18))
+        ctk.CTkLabel(status_card, text=self.t("premium.entitlements_title"), font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=18, pady=(0, 8))
+        ctk.CTkLabel(status_card, textvariable=self.premium_entitlement_var, justify="left", wraplength=980).pack(anchor="w", padx=18, pady=(0, 18))
+
+        activation_card = ctk.CTkFrame(frame, fg_color="#102a25")
+        activation_card.pack(fill="x", padx=18, pady=(0, 18))
+        ctk.CTkLabel(activation_card, text=self.t("premium.activate"), font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", padx=18, pady=(18, 10))
+        self.premium_key_entry = ctk.CTkEntry(activation_card, textvariable=self.premium_key_var, width=500, placeholder_text=self.t("premium.key_placeholder"))
+        self.premium_key_entry.pack(anchor="w", padx=18, pady=(0, 10))
+        action_row = ctk.CTkFrame(activation_card, fg_color="transparent")
+        action_row.pack(fill="x", padx=18, pady=(0, 14))
+        self.premium_activate_button = ctk.CTkButton(
+            action_row,
+            text=self.t("premium.activate_button"),
+            command=self._activate_premium,
+        )
+        self.premium_activate_button.pack(side="left")
+        self.premium_refresh_button = ctk.CTkButton(
+            action_row,
+            text=self.t("premium.refresh_button"),
+            command=self._refresh_premium_view,
+            width=130,
+        )
+        self.premium_refresh_button.pack(side="left", padx=(10, 0))
+        ctk.CTkLabel(action_row, textvariable=self.premium_feedback_var, text_color="#8fc5b8", wraplength=740).pack(side="left", padx=(18, 0))
+        self.premium_feedback_var.set(self.t("premium.enter_key_hint"))
+
+        self._refresh_premium_view()
+        return frame
+
     def _trust_center_view(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.content)
         ctk.CTkLabel(frame, text=self.t("trust.title"), font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w", padx=18, pady=(18, 8))
@@ -543,6 +592,9 @@ class NovaSentinelWindow(ctk.CTk):
         self.update_button = None
         self.first_nav_button = None
         self.target_entry = None
+        self.premium_key_entry = None
+        self.premium_activate_button = None
+        self.premium_refresh_button = None
         self.progress_bar = None
         self.scan_action_buttons = []
         self.stop_scan_button = None
@@ -919,6 +971,7 @@ class NovaSentinelWindow(ctk.CTk):
                 )
                 self._refresh_selected_incident_detail()
             self._refresh_trust_center(snapshot.get("telemetry", {}))
+            self._refresh_premium_view()
             if self.previous_scan_in_progress and not state["scan_in_progress"]:
                 self._notify_scan_transition(state["last_scan_summary"])
             self.previous_scan_in_progress = bool(state["scan_in_progress"])
@@ -926,6 +979,91 @@ class NovaSentinelWindow(ctk.CTk):
             self.status_var.set(f"UI refresh recovered: {exc}")
         finally:
             self.after(1200, self.refresh_view)
+
+    def _refresh_premium_view(self) -> None:
+        try:
+            state = self.engine.get_premium_state()
+            active_features = [self._display_premium_feature(feature) for feature in state.features]
+            feature_summary = ", ".join(active_features) if active_features else self.t("premium.features_none")
+            if state.active:
+                status = self.t("premium.status_active", plan=state.plan or self.t("premium.unknown"), customer=state.customer or self.t("premium.unknown"), expiry=state.expires_at or self.t("premium.never"))
+                entitlements = self.t(
+                    "premium.entitlement_template",
+                    license_id=state.license_id or self.t("premium.unknown"),
+                    customer=state.customer or self.t("premium.unknown"),
+                    checked=state.checked_at or self.t("premium.never"),
+                    device_id=state.device_id or self.t("premium.unknown"),
+                    key_mask=state.key_mask or self.t("premium.unknown"),
+                )
+            else:
+                status = self.t("premium.status_inactive", status=state.status or self.t("premium.inactive"))
+                feature_summary = self.t("premium.features_inactive")
+                entitlements = self.t("premium.no_entitlement")
+            self.premium_status_var.set(status)
+            self.premium_features_var.set(feature_summary)
+            self.premium_entitlement_var.set(entitlements)
+            self.premium_feedback_var.set(self.t("premium.refresh_hint"))
+            if self.premium_activate_button:
+                self.premium_activate_button.configure(state="normal")
+            if self.premium_refresh_button:
+                self.premium_refresh_button.configure(state="normal")
+        except Exception as exc:
+            self.premium_status_var.set(self.t("premium.status_error", error=str(exc)))
+            self.premium_features_var.set(self.t("premium.features_inactive"))
+            self.premium_entitlement_var.set(self.t("premium.no_entitlement"))
+            if self.premium_refresh_button:
+                self.premium_refresh_button.configure(state="normal")
+
+    def _activate_premium(self) -> None:
+        key = self.premium_key_var.get().strip()
+        if not key:
+            self.premium_feedback_var.set(self.t("premium.key_required"))
+            return
+        if self.premium_activate_button:
+            self.premium_activate_button.configure(state="disabled")
+        if self.premium_key_entry:
+            self.premium_key_entry.configure(state="disabled")
+        if self.premium_refresh_button:
+            self.premium_refresh_button.configure(state="disabled")
+        self.premium_feedback_var.set(self.t("premium.activating"))
+        thread = threading.Thread(
+            target=self._activate_premium_worker,
+            args=(key,),
+            name="NovaSentinelPremiumActivation",
+            daemon=True,
+        )
+        thread.start()
+
+    def _activate_premium_worker(self, key: str) -> None:
+        try:
+            self.engine.activate_premium_key(key)
+            self.after(0, self._on_premium_activated)
+        except Exception as exc:
+            self.after(0, self._on_premium_activation_failed, str(exc))
+
+    def _on_premium_activated(self) -> None:
+        self._refresh_premium_view()
+        if self.premium_key_entry:
+            self.premium_key_entry.configure(state="normal")
+        if self.premium_activate_button:
+            self.premium_activate_button.configure(state="normal")
+        self.premium_feedback_var.set(self.t("premium.activated"))
+
+    def _on_premium_activation_failed(self, error: str) -> None:
+        if self.premium_key_entry:
+            self.premium_key_entry.configure(state="normal")
+        if self.premium_activate_button:
+            self.premium_activate_button.configure(state="normal")
+        if self.premium_refresh_button:
+            self.premium_refresh_button.configure(state="normal")
+        self.premium_feedback_var.set(self.t("premium.activation_failed", error=error))
+
+    def _display_premium_feature(self, feature: str) -> str:
+        key = f"premium.feature.{feature}"
+        translated = self.t(key)
+        if translated == key:
+            return feature.replace("_", " ")
+        return translated
 
     def _refresh_scan_controls(self, state: dict) -> None:
         in_progress = bool(state.get("scan_in_progress"))
