@@ -34,7 +34,7 @@ Demande envoyée par le desktop:
   "key": "NSP-CLIENT-KEY",
   "key_fingerprint": "sha256-of-key",
   "device_id": "uuid-v4",
-  "app_version": "0.1.6",
+  "app_version": "0.1.8",
   "channel": "stable"
 }
 ```
@@ -57,16 +57,16 @@ Codes d’erreur possibles:
 
 Paramètres (`GET`) :  
 - `channel` (`stable` ou `beta`, défaut `stable`)  
-- `current_version` (ex: `0.1.6`)
+- `current_version` (ex: `0.1.8`)
 
 Réponse 200 (desktop):
 
 ```json
 {
   "update": {
-    "version": "0.1.7",
-    "tag": "v0.1.7",
-    "asset_name": "NovaSentinel-Setup-0.1.7.exe",
+    "version": "0.1.8",
+    "tag": "v0.1.8",
+    "asset_name": "NovaSentinel-Setup-0.1.8.exe",
     "download_url": "https://...",
     "sha256": "64hex",
     "release_url": "https://...",

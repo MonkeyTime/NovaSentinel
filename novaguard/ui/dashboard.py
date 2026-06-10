@@ -61,12 +61,20 @@ class NovaSentinelWindow(ctk.CTk):
         self.language_by_label = {label: code for code, label in LANGUAGES.items()}
         self.premium_key_var = tk.StringVar(value="")
         self.premium_status_var = tk.StringVar(value="")
-        self.premium_entitlement_var = tk.StringVar(value="")
+        self.premium_plan_var = tk.StringVar(value="")
+        self.premium_customer_var = tk.StringVar(value="")
+        self.premium_expires_var = tk.StringVar(value="")
+        self.premium_license_var = tk.StringVar(value="")
+        self.premium_device_var = tk.StringVar(value="")
+        self.premium_key_mask_var = tk.StringVar(value="")
         self.premium_feedback_var = tk.StringVar(value="")
         self.premium_features_var = tk.StringVar(value="")
         self.premium_activate_button: ctk.CTkButton | None = None
         self.premium_refresh_button: ctk.CTkButton | None = None
         self.premium_key_entry: ctk.CTkEntry | None = None
+        self.premium_status_label: ctk.CTkLabel | None = None
+        self.premium_features_title_label: ctk.CTkLabel | None = None
+        self.premium_features_value_label: ctk.CTkLabel | None = None
 
         self.update_info: UpdateInfo | None = None
         self.update_button: ctk.CTkButton | None = None
@@ -440,12 +448,47 @@ class NovaSentinelWindow(ctk.CTk):
 
         status_card = ctk.CTkFrame(frame, fg_color="#132b26")
         status_card.pack(fill="x", padx=18, pady=(0, 12))
-        ctk.CTkLabel(status_card, text=self.t("premium.status_title"), font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=18, pady=(18, 6))
-        ctk.CTkLabel(status_card, textvariable=self.premium_status_var, justify="left", wraplength=980).pack(anchor="w", padx=18, pady=(0, 12))
-        ctk.CTkLabel(status_card, text=self.t("premium.active_features_title"), font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=18, pady=(0, 8))
-        ctk.CTkLabel(status_card, textvariable=self.premium_features_var, justify="left", wraplength=980).pack(anchor="w", padx=18, pady=(0, 18))
-        ctk.CTkLabel(status_card, text=self.t("premium.entitlements_title"), font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=18, pady=(0, 8))
-        ctk.CTkLabel(status_card, textvariable=self.premium_entitlement_var, justify="left", wraplength=980).pack(anchor="w", padx=18, pady=(0, 18))
+        ctk.CTkLabel(status_card, text=self.t("premium.status_title"), font=ctk.CTkFont(weight="bold")).pack(
+            anchor="w", padx=18, pady=(18, 8)
+        )
+        self.premium_status_label = ctk.CTkLabel(
+            status_card,
+            textvariable=self.premium_status_var,
+            justify="left",
+            wraplength=980,
+            font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        self.premium_status_label.pack(anchor="w", padx=18, pady=(0, 12))
+
+        features_card = ctk.CTkFrame(frame, fg_color="#102a25")
+        features_card.pack(fill="x", padx=18, pady=(0, 12))
+        self.premium_features_title_label = ctk.CTkLabel(
+            features_card,
+            text=self.t("premium.active_features_title"),
+            font=ctk.CTkFont(size=15, weight="bold"),
+        )
+        self.premium_features_title_label.pack(anchor="w", padx=18, pady=(14, 8))
+        self.premium_features_value_label = ctk.CTkLabel(
+            features_card,
+            textvariable=self.premium_features_var,
+            justify="left",
+            wraplength=980,
+        )
+        self.premium_features_value_label.pack(anchor="w", padx=18, pady=(0, 18))
+
+        entitlement_card = ctk.CTkFrame(frame, fg_color="#132b26")
+        entitlement_card.pack(fill="x", padx=18, pady=(0, 12))
+        ctk.CTkLabel(entitlement_card, text=self.t("premium.entitlements_title"), font=ctk.CTkFont(weight="bold")).pack(
+            anchor="w", padx=18, pady=(14, 10)
+        )
+        details_grid = ctk.CTkFrame(entitlement_card, fg_color="transparent")
+        details_grid.pack(fill="x", padx=18, pady=(0, 16))
+        self._add_premium_detail_row(details_grid, self._premium_localize("premium.customer", "Customer"), self.premium_customer_var, row=0, col=0)
+        self._add_premium_detail_row(details_grid, self._premium_localize("premium.license", "License"), self.premium_license_var, row=0, col=1)
+        self._add_premium_detail_row(details_grid, self._premium_localize("premium.plan", "Plan"), self.premium_plan_var, row=1, col=0)
+        self._add_premium_detail_row(details_grid, self._premium_localize("premium.expires", "Expires"), self.premium_expires_var, row=1, col=1)
+        self._add_premium_detail_row(details_grid, self._premium_localize("premium.device", "Device"), self.premium_device_var, row=2, col=0)
+        self._add_premium_detail_row(details_grid, self._premium_localize("premium.key_hint", "Key"), self.premium_key_mask_var, row=2, col=1)
 
         activation_card = ctk.CTkFrame(frame, fg_color="#102a25")
         activation_card.pack(fill="x", padx=18, pady=(0, 18))
@@ -472,6 +515,26 @@ class NovaSentinelWindow(ctk.CTk):
 
         self._refresh_premium_view()
         return frame
+
+    def _add_premium_detail_row(self, parent: ctk.CTkFrame, label: str, value_var: tk.StringVar, row: int, col: int) -> None:
+        row_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        row_frame.grid(row=row, column=col, padx=(0, 0), pady=(0, 8), sticky="ew")
+        ctk.CTkLabel(row_frame, text=label, width=190, anchor="w", text_color="#c4e9dd", font=ctk.CTkFont(weight="bold")).pack(
+            side="left"
+        )
+        ctk.CTkLabel(
+            row_frame,
+            textvariable=value_var,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        ).pack(side="left", fill="x", expand=True)
+        parent.grid_columnconfigure(col, weight=1)
+        parent.grid_columnconfigure(1 - col, minsize=0)
+
+    def _premium_localize(self, key: str, fallback: str) -> str:
+        value = self.t(key)
+        return value if value != key else fallback
 
     def _trust_center_view(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.content)
@@ -983,36 +1046,66 @@ class NovaSentinelWindow(ctk.CTk):
     def _refresh_premium_view(self) -> None:
         try:
             state = self.engine.get_premium_state()
+            unknown = self._premium_localize("premium.unknown", "unknown")
+            never = self._premium_localize("premium.never", "never")
+            inactive_status = state.status or self._premium_localize("premium.inactive", "inactive")
             active_features = [self._display_premium_feature(feature) for feature in state.features]
-            feature_summary = ", ".join(active_features) if active_features else self.t("premium.features_none")
+            feature_summary = ", ".join(active_features) if active_features else self._premium_localize(
+                "premium.features_none",
+                "No active premium features.",
+            )
             if state.active:
-                status = self.t("premium.status_active", plan=state.plan or self.t("premium.unknown"), customer=state.customer or self.t("premium.unknown"), expiry=state.expires_at or self.t("premium.never"))
-                entitlements = self.t(
-                    "premium.entitlement_template",
-                    license_id=state.license_id or self.t("premium.unknown"),
-                    customer=state.customer or self.t("premium.unknown"),
-                    checked=state.checked_at or self.t("premium.never"),
-                    device_id=state.device_id or self.t("premium.unknown"),
-                    key_mask=state.key_mask or self.t("premium.unknown"),
+                status = self.t(
+                    "premium.status_active",
+                    plan=state.plan or unknown,
+                    customer=state.customer or unknown,
+                    expiry=state.expires_at or never,
                 )
+                status_color = "#8fe6a8"
             else:
-                status = self.t("premium.status_inactive", status=state.status or self.t("premium.inactive"))
-                feature_summary = self.t("premium.features_inactive")
-                entitlements = self.t("premium.no_entitlement")
+                status = self.t("premium.status_inactive", status=inactive_status)
+                status_color = "#f4b183"
+                if state.status in {"expired", "unsupported_plan", "inactive"}:
+                    status_color = "#e88f7f"
+                feature_summary = self._premium_localize("premium.features_inactive", "No active premium features.")
+
+            self.premium_plan_var.set(state.plan or unknown)
+            self.premium_customer_var.set(state.customer or unknown)
+            self.premium_expires_var.set(state.expires_at or never)
+            self.premium_license_var.set(state.license_id or unknown)
+            self.premium_device_var.set(state.device_id or unknown)
+            self.premium_key_mask_var.set(state.key_mask or unknown)
+            if not state.active:
+                self.premium_features_var.set(self._premium_localize("premium.features_inactive", "No active premium features."))
+                if self.premium_plan_var.get() == unknown and inactive_status == self._premium_localize("premium.inactive", "inactive"):
+                    self.premium_plan_var.set(self._premium_localize("premium.inactive", "inactive"))
+                    self.premium_customer_var.set(self._premium_localize("premium.inactive", "inactive"))
+                    self.premium_expires_var.set(never)
+                    self.premium_license_var.set(self._premium_localize("premium.inactive", "inactive"))
+                    self.premium_device_var.set(self._premium_localize("premium.inactive", "inactive"))
+                    self.premium_key_mask_var.set(self._premium_localize("premium.inactive", "inactive"))
             self.premium_status_var.set(status)
             self.premium_features_var.set(feature_summary)
-            self.premium_entitlement_var.set(entitlements)
             self.premium_feedback_var.set(self.t("premium.refresh_hint"))
             if self.premium_activate_button:
                 self.premium_activate_button.configure(state="normal")
             if self.premium_refresh_button:
                 self.premium_refresh_button.configure(state="normal")
+            if self.premium_status_label:
+                self.premium_status_label.configure(text_color=status_color)
         except Exception as exc:
             self.premium_status_var.set(self.t("premium.status_error", error=str(exc)))
-            self.premium_features_var.set(self.t("premium.features_inactive"))
-            self.premium_entitlement_var.set(self.t("premium.no_entitlement"))
+            self.premium_features_var.set(self._premium_localize("premium.features_inactive", "No active premium features."))
+            self.premium_plan_var.set(self._premium_localize("premium.inactive", "inactive"))
+            self.premium_customer_var.set(self._premium_localize("premium.unknown", "unknown"))
+            self.premium_expires_var.set(self._premium_localize("premium.never", "never"))
+            self.premium_license_var.set(self._premium_localize("premium.unknown", "unknown"))
+            self.premium_device_var.set(self._premium_localize("premium.unknown", "unknown"))
+            self.premium_key_mask_var.set(self._premium_localize("premium.unknown", "unknown"))
             if self.premium_refresh_button:
                 self.premium_refresh_button.configure(state="normal")
+            if self.premium_status_label:
+                self.premium_status_label.configure(text_color="#f3a29a")
 
     def _activate_premium(self) -> None:
         key = self.premium_key_var.get().strip()
