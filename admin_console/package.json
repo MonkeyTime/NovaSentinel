@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "start:local": "node server.js",
+    "start:local:script": "./tools/run-admin-console.sh",
+    "start:local:windows": "tools\\run-admin-console.bat",
     "check": "node --check server.js && node --check src/i18n.js && node --check src/app.js"
   },
   "engines": {
