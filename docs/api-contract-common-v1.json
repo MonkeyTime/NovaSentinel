@@ -1,0 +1,179 @@
+{
+  "version": "1.0.0",
+  "service": "NovaSentinel",
+  "routes": [
+    {
+      "name": "Premium verification",
+      "scope": "cloud-desktop",
+      "path": "/api/premium/verify",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Release info (desktop)",
+      "scope": "cloud-desktop",
+      "path": "/api/releases/latest",
+      "method": ["GET", "POST"],
+      "required": true
+    },
+    {
+      "name": "Release info alias (legacy)",
+      "scope": "cloud-desktop",
+      "path": "/api/premium/releases/latest",
+      "method": "GET",
+      "required": true
+    },
+    {
+      "name": "Service health",
+      "scope": "cloud-website",
+      "path": "/api/health",
+      "method": "GET",
+      "required": true
+    },
+    {
+      "name": "Session lookup",
+      "scope": "cloud-website",
+      "path": "/api/session",
+      "method": "GET",
+      "required": true
+    },
+    {
+      "name": "Login step 1",
+      "scope": "cloud-website",
+      "path": "/api/login",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Login step 2",
+      "scope": "cloud-website",
+      "path": "/api/login/verify",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Logout",
+      "scope": "cloud-website",
+      "path": "/api/logout",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Bootstrap setup",
+      "scope": "cloud-website",
+      "path": "/api/setup/superadmin",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Stripe checkout creation",
+      "scope": "cloud-website",
+      "path": "/api/checkout/sessions",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Stripe webhook",
+      "scope": "cloud-website",
+      "path": "/api/stripe/webhook",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Claim license",
+      "scope": "cloud-website",
+      "path": "/api/organizations/claim",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "User dashboard",
+      "scope": "cloud-website",
+      "path": "/api/dashboard/user",
+      "method": "GET",
+      "required": true
+    },
+    {
+      "name": "Superadmin dashboard",
+      "scope": "cloud-website",
+      "path": "/api/dashboard/superadmin",
+      "method": "GET",
+      "required": true
+    },
+    {
+      "name": "Issue license",
+      "scope": "cloud-website",
+      "path": "/api/superadmin/licenses/issue",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Revoke license",
+      "scope": "cloud-website",
+      "path": "/api/superadmin/licenses/:id/revoke",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Resign license",
+      "scope": "cloud-website",
+      "path": "/api/superadmin/licenses/:id/resign",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Inspect GitHub release URL",
+      "scope": "cloud-website",
+      "path": "/api/superadmin/releases/inspect-github-url",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Publish release",
+      "scope": "cloud-website",
+      "path": "/api/superadmin/releases/publish",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Audit export",
+      "scope": "cloud-website",
+      "path": "/api/superadmin/audit/export",
+      "method": "GET",
+      "required": true
+    },
+    {
+      "name": "Manual backup",
+      "scope": "cloud-website",
+      "path": "/api/superadmin/backups/create",
+      "method": "POST",
+      "required": true
+    },
+    {
+      "name": "Local health",
+      "scope": "admin-console-local",
+      "path": "/api/local/health",
+      "method": "GET",
+      "required": true
+    },
+    {
+      "name": "Cloud health proxy",
+      "scope": "admin-console-local",
+      "path": "/api/cloud/health",
+      "method": "GET",
+      "required": true
+    }
+  ],
+  "desktopBindings": [
+    {
+      "name": "Premium verification endpoint config",
+      "path": "novaguard/core/premium.py",
+      "mustContain": "PREMIUM_VERIFY_URL = os.getenv(\"NOVASENTINEL_PREMIUM_VERIFY_URL\""
+    },
+    {
+      "name": "Release endpoint config",
+      "path": "novaguard/core/premium.py",
+      "mustContain": "UPDATE_URL = os.getenv(\"NOVASENTINEL_UPDATE_URL\") or os.getenv(\"NOVASENTINEL_PREMIUM_UPDATE_URL\","
+    }
+  ]
+}

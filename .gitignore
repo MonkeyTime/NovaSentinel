@@ -42,3 +42,4 @@ Thumbs.db
 desktop.ini
 .idea/
 .vscode/
+.env
