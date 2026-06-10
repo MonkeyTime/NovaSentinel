@@ -64,6 +64,42 @@ Security controls enabled by default:
 - append-only SQLite audit log enforced with triggers;
 - scheduled SQLite backups in `premium_cloud/data/backups/`.
 
+## Debian production deployment
+
+For a Debian host running other web apps (behind Nginx/Traefik/Apache reverse proxy), run:
+
+```bash
+sudo bash premium_cloud/tools/deploy-debian.sh
+```
+
+Defaults used by the deploy script:
+
+- install dir: `/opt/novasentinel-premium-cloud`
+- service name: `novasentinel-premium-cloud`
+- user/group: `novasentinel`
+- public bind: `0.0.0.0:8780`
+- sqlite path: `/var/lib/novasentinel-premium-cloud/premium_cloud.sqlite3`
+
+You can override with environment variables:
+
+```bash
+sudo NOVASENTINEL_CLOUD_APP_DIR=/srv/novasentinel/cloud \
+     NOVASENTINEL_CLOUD_APP_NAME=novasentinel-premium-cloud \
+     NOVASENTINEL_CLOUD_APP_USER=novasentinel \
+     NOVASENTINEL_CLOUD_APP_GROUP=novasentinel \
+     NOVASENTINEL_CLOUD_HOST=127.0.0.1 \
+     NOVASENTINEL_CLOUD_PORT=8780 \
+     bash premium_cloud/tools/deploy-debian.sh
+```
+
+Manage the service with:
+
+```bash
+systemctl status novasentinel-premium-cloud
+systemctl restart novasentinel-premium-cloud
+systemctl stop novasentinel-premium-cloud
+```
+
 ## Production payment flow
 
 1. Buyer selects the number of Premium seats on this site.

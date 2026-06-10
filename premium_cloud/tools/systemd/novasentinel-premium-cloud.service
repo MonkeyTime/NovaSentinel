@@ -1,0 +1,28 @@
+# Copy this file and replace the __PLACEHOLDERS__ before copying to /etc/systemd/system.
+[Unit]
+Description=NovaSentinel Premium Cloud
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+ExecStart=__NODE_BIN__ __APP_DIR__/tools/run-premium-cloud.sh
+EnvironmentFile=__APP_DIR__/.env
+Restart=on-failure
+RestartSec=5
+User=__USER__
+Group=__GROUP__
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

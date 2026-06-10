@@ -77,6 +77,23 @@ The executable output is placed in `dist\NovaSentinel\NovaSentinel.exe`.
 
 The installer output is placed in the `release\` folder with a timestamped filename.
 
+## Admin Console (Premium fleet deployment)
+
+The downloadable **NovaSentinel Admin Console** is located under [`admin_console`](admin_console).
+It is distributed as a zip for IT managers, while the hosted web site runs from [`premium_cloud`](premium_cloud).
+
+To build a distributable archive for IT managers:
+
+```powershell
+pwsh .\scripts\package_admin_console.ps1
+```
+
+To deploy the web site and dashboards on Debian behind an existing web stack:
+
+```bash
+sudo bash premium_cloud/tools/deploy-debian.sh
+```
+
 ## Limits
 
 NovaSentinel is a serious host-based protection project, but it is still a user-space antivirus, not a signed kernel EDR product. It does not yet ship a kernel mini-filter, an AMSI provider, ETW consumers, or a cloud reputation backend.
