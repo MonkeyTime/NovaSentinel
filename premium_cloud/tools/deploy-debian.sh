@@ -37,6 +37,28 @@ upsert_env() {
   fi
 }
 
+set_env_if_missing() {
+  local file="$1"
+  local key="$2"
+  local value="${3:-}"
+  touch "$file"
+  if ! grep -qE "^${key}=" "$file"; then
+    printf '%s=%s\n' "$key" "$value" >> "$file"
+  fi
+}
+
+backup_env_file() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  local backup_dir="$DATA_DIR/env-backups"
+  local backup_file
+  backup_file="$backup_dir/.env.$(date +%Y%m%d%H%M%S).bak"
+  mkdir -p "$backup_dir"
+  cp -a "$file" "$backup_file"
+  chmod 0640 "$backup_file" || true
+  log "Existing .env backed up to $backup_file"
+}
+
 latest_matching_file() {
   local pattern="$1"
   shift
@@ -167,11 +189,14 @@ fi
 mkdir -p "$APP_DIR"
 mkdir -p "$DATA_DIR"
 mkdir -p "$DOWNLOAD_DIR"
+backup_env_file "$APP_DIR/.env"
 
 if command -v rsync >/dev/null 2>&1; then
   rsync -a \
     --delete \
     --exclude ".git" \
+    --exclude ".env" \
+    --exclude ".env.*" \
     --exclude "node_modules" \
     --exclude "data" \
     --exclude "*.log" \
@@ -192,13 +217,19 @@ chown -R "$APP_USER:$APP_GROUP" "$APP_DIR" "$DATA_DIR"
 chmod -R 0750 "$APP_DIR/data"
 chmod +x "$APP_DIR/tools/run-premium-cloud.sh"
 
-if [[ -f "$APP_DIR/.env" ]]; then
-  cp -a "$APP_DIR/.env" "$APP_DIR/.env.$(date +%Y%m%d%H%M%S).bak"
-fi
 upsert_env "$APP_DIR/.env" HOST "$HOST"
 upsert_env "$APP_DIR/.env" PORT "$PORT"
 upsert_env "$APP_DIR/.env" NODE_ENV "production"
 upsert_env "$APP_DIR/.env" NOVASENTINEL_PREMIUM_DB "$DB_PATH"
+set_env_if_missing "$APP_DIR/.env" PUBLIC_BASE_URL "https://yourdomain.example"
+set_env_if_missing "$APP_DIR/.env" STRIPE_SECRET_KEY ""
+set_env_if_missing "$APP_DIR/.env" STRIPE_WEBHOOK_SECRET ""
+set_env_if_missing "$APP_DIR/.env" PREMIUM_ED25519_PRIVATE_KEY_PEM ""
+set_env_if_missing "$APP_DIR/.env" GITHUB_TOKEN "$GITHUB_TOKEN"
+set_env_if_missing "$APP_DIR/.env" NOVASENTINEL_BACKUP_INTERVAL_HOURS "24"
+set_env_if_missing "$APP_DIR/.env" NOVASENTINEL_BACKUP_RETENTION "14"
+chown root:"$APP_GROUP" "$APP_DIR/.env"
+chmod 0640 "$APP_DIR/.env"
 
 installer_asset="$(latest_matching_file "NovaSentinel-Setup-*.exe" "$REPO_DIR/release" "$PROJECT_DIR/downloads" "$PROJECT_DIR/data/downloads")"
 admin_console_asset="$(latest_matching_file "novasentinel-admin-console-*.zip" "$REPO_DIR/release" "$PROJECT_DIR/downloads" "$PROJECT_DIR/data/downloads")"
