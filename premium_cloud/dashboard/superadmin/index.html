@@ -48,11 +48,11 @@
         <div class="superadmin-panel active" data-panel="overview">
           <div class="panel-card">
             <h2>Centre de contrôle</h2>
-            <p>Les données ci-dessous viennent de SQLite et les actions sensibles sont protégées côté serveur par le rôle superadmin.</p>
+            <p>Pilotez les comptes Premium, les licences, les releases et les opérations essentielles depuis un espace centralisé.</p>
             <div class="admin-action-grid">
               <button type="button" onclick="showPanel('licenses')">Émettre une licence</button>
               <button type="button" onclick="showPanel('ops')">Publier release</button>
-              <button id="exportAudit" type="button">Exporter audit log</button>
+              <button id="exportAudit" type="button">Exporter l’historique</button>
             </div>
           </div>
         </div>
@@ -100,7 +100,7 @@
             <div id="releaseRows" class="event-list"></div>
             <div id="auditRows" class="event-list"></div>
             <div class="admin-action-grid">
-              <button id="createBackup" type="button">Créer une sauvegarde SQLite</button>
+              <button id="createBackup" type="button">Créer une sauvegarde</button>
             </div>
           </div>
         </div>
@@ -110,9 +110,9 @@
             <h2>Garde-fous obligatoires</h2>
             <ul class="security-list">
               <li>MFA obligatoire pour tous les admins internes.</li>
-              <li>Rôles contrôlés côté serveur pour chaque endpoint sensible.</li>
-              <li>Clés Stripe et Ed25519 privées hors frontend.</li>
-              <li>Audit log append-only pour chaque action sensible.</li>
+              <li>Accès réservé aux comptes autorisés.</li>
+              <li>Secrets de paiement et de signature protégés.</li>
+              <li>Historique conservé pour les actions sensibles.</li>
             </ul>
           </div>
         </div>

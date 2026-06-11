@@ -77,7 +77,7 @@
         <div class="section-head">
           <p class="eyebrow" data-i18n="buy.eyebrow">Achat de clé</p>
           <h2 data-i18n="buy.title">Choisissez le nombre de postes et générez une clé Premium.</h2>
-          <p data-i18n="buy.body">Paiement prévu via Stripe Checkout. En production, le backend créera la licence seulement après webhook Stripe confirmé, puis signera les entitlements.</p>
+          <p data-i18n="buy.body">Paiement sécurisé via Stripe Checkout. Votre licence Premium sera préparée après confirmation du paiement.</p>
         </div>
         <div class="purchase-layout">
           <form id="purchaseForm" class="purchase-form">
@@ -99,7 +99,7 @@
               <div><dt data-i18n="summary.price">Total mensuel</dt><dd id="summaryPrice">225 EUR</dd></div>
             </dl>
             <div id="licenseResult" class="license-result"><span data-i18n="summary.pending">Clé générée après validation achat</span></div>
-            <p class="stripe-note" data-i18n="summary.note">Stripe Checkout gérera le paiement. La clé organisation est créée côté serveur après confirmation.</p>
+            <p class="stripe-note" data-i18n="summary.note">Stripe Checkout gérera le paiement. Votre clé Premium sera préparée après confirmation.</p>
           </aside>
         </div>
       </section>
@@ -134,7 +134,7 @@
         <div class="timeline">
           <article><strong>1</strong><span data-i18n="security.step1">Achat et création de licence sur notre site.</span></article>
           <article><strong>2</strong><span data-i18n="security.step2">Activation par clé client ou clé organisation.</span></article>
-          <article><strong>3</strong><span data-i18n="security.step3">Serveur NovaSentinel retourne un entitlement Ed25519 signé.</span></article>
+          <article><strong>3</strong><span data-i18n="security.step3">NovaSentinel confirme les droits Premium de façon sécurisée.</span></article>
           <article><strong>4</strong><span data-i18n="security.step4">L'app déverrouille seulement les droits signés et non expirés.</span></article>
         </div>
       </section>
