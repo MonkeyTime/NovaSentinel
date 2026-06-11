@@ -89,20 +89,27 @@ async function request(url, accept = "application/vnd.github+json") {
   return response;
 }
 
-const releaseResponse = await request(`https://api.github.com/repos/${repo}/releases/latest`);
-const release = await releaseResponse.json();
-const assets = Array.isArray(release.assets) ? release.assets : [];
-const asset = assets.find((candidate) => assetRegex.test(candidate.name || ""));
-if (!asset) {
-  throw new Error(`No matching asset in latest release ${release.tag_name || ""}`);
+async function main() {
+  const releaseResponse = await request(`https://api.github.com/repos/${repo}/releases/latest`);
+  const release = await releaseResponse.json();
+  const assets = Array.isArray(release.assets) ? release.assets : [];
+  const asset = assets.find((candidate) => assetRegex.test(candidate.name || ""));
+  if (!asset) {
+    throw new Error(`No matching asset in latest release ${release.tag_name || ""}`);
+  }
+
+  const assetResponse = await request(asset.browser_download_url, "application/octet-stream");
+  const bytes = Buffer.from(await assetResponse.arrayBuffer());
+  fs.mkdirSync(downloadDir, { recursive: true });
+  fs.writeFileSync(path.join(downloadDir, asset.name), bytes);
+  fs.writeFileSync(path.join(downloadDir, canonicalName), bytes);
+  console.log(`Downloaded ${asset.name} as ${canonicalName}`);
 }
 
-const assetResponse = await request(asset.browser_download_url, "application/octet-stream");
-const bytes = Buffer.from(await assetResponse.arrayBuffer());
-fs.mkdirSync(downloadDir, { recursive: true });
-fs.writeFileSync(path.join(downloadDir, asset.name), bytes);
-fs.writeFileSync(path.join(downloadDir, canonicalName), bytes);
-console.log(`Downloaded ${asset.name} as ${canonicalName}`);
+main().catch((error) => {
+  console.error(error.message || error);
+  process.exit(1);
+});
 NODE
 }
 
