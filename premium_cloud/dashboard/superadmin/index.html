@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Superadmin - NovaSentinel Premium</title>
+    <title>Console interne - NovaSentinel Premium</title>
     <link rel="stylesheet" href="../../styles.css" />
   </head>
   <body class="portal-page superadmin-body" data-dashboard="superadmin">
@@ -22,7 +22,7 @@
 
     <main class="dashboard-shell">
       <aside class="dashboard-rail">
-        <strong>Superadmin</strong>
+        <strong>Console interne</strong>
         <button class="superadmin-tab active" type="button" data-panel="overview">Vue globale</button>
         <button class="superadmin-tab" type="button" data-panel="licenses">Licences</button>
         <button class="superadmin-tab" type="button" data-panel="ops">Ops</button>
@@ -33,7 +33,7 @@
         <div class="dashboard-title">
           <div>
             <p class="eyebrow">Interne NovaSentinel</p>
-            <h1>Superadmin</h1>
+            <h1>Console interne</h1>
           </div>
           <div id="superadminState" class="inline-state compact-state">Chargement...</div>
         </div>
@@ -60,7 +60,7 @@
         <div class="superadmin-panel" data-panel="licenses">
           <div class="panel-card">
             <h2>Émettre une licence Premium</h2>
-            <p>Action utile pour ventes manuelles, support ou tests locaux. Le flux Stripe reste le chemin client standard.</p>
+            <p>Créez une licence pour une vente accompagnée, une demande support ou une activation client validée.</p>
             <form id="issueLicenseForm" class="auth-form compact-form">
               <label>Organisation<input name="org" autocomplete="organization" placeholder="Ex. MonkeyTime" required /></label>
               <label>Email facturation<input name="email" type="email" autocomplete="email" placeholder="billing@example.com" required /></label>
@@ -78,7 +78,7 @@
 
         <div class="superadmin-panel" data-panel="ops">
           <div class="panel-card">
-            <h2>Releases et audit</h2>
+            <h2>Versions et historique</h2>
             <form id="releaseForm" class="auth-form compact-form" enctype="multipart/form-data">
               <label>Version<input name="version" placeholder="0.1.6" required /></label>
               <label>Canal
@@ -88,12 +88,12 @@
                 </select>
               </label>
               <label>Installateur NovaSentinel<input name="installer" type="file" accept=".exe,application/octet-stream" /></label>
-              <label>URL GitHub ou externe<input name="installer_url" type="url" placeholder="https://github.com/.../releases/download/.../NovaSentinelSetup.exe" /></label>
+              <label>Lien de téléchargement<input name="installer_url" type="url" placeholder="https://github.com/.../NovaSentinelSetup.exe" /></label>
               <div class="inline-form-actions">
-                <button id="inspectGithubRelease" type="button">Récupérer depuis GitHub</button>
-                <span id="githubReleaseState">Collez une URL d'asset GitHub Release pour préremplir automatiquement.</span>
+                <button id="inspectGithubRelease" type="button">Récupérer les informations</button>
+                <span id="githubReleaseState">Collez un lien de téléchargement pour préremplir automatiquement.</span>
               </div>
-              <label>SHA-256<input name="sha256" autocomplete="off" placeholder="Calculé automatiquement pour GitHub ou upload" /></label>
+              <label>Empreinte de vérification<input name="sha256" autocomplete="off" placeholder="Calculée automatiquement quand c'est possible" /></label>
               <label>Notes de version<textarea name="notes" rows="4" placeholder="Corrections, changements, consignes de mise à jour..."></textarea></label>
               <button class="button primary" type="submit">Publier release</button>
             </form>
@@ -111,7 +111,7 @@
             <ul class="security-list">
               <li>MFA obligatoire pour tous les admins internes.</li>
               <li>Accès réservé aux comptes autorisés.</li>
-              <li>Secrets de paiement et de signature protégés.</li>
+              <li>Données sensibles protégées.</li>
               <li>Historique conservé pour les actions sensibles.</li>
             </ul>
           </div>

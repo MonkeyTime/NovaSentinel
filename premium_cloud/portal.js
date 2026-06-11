@@ -137,20 +137,20 @@ function humanError(error) {
     license_inactive_or_unknown: "Licence inactive ou inconnue.",
     seat_limit_reached: "Tous les postes de cette licence sont déjà utilisés.",
     installer_required: "Ajoutez un installateur .exe ou une URL externe avant de publier.",
-    sha256_required: "Le SHA-256 est requis pour publier une URL externe. Utilisez la récupération GitHub ou uploadez l'installateur.",
+    sha256_required: "L'empreinte de vérification est requise pour publier un lien externe. Utilisez la récupération automatique ou uploadez l'installateur.",
     installer_invalid_file_type: "Le fichier d'installation doit avoir l'extension .exe.",
     installer_too_large: "Le fichier d'installation est trop volumineux.",
     invalid_json: "La requête envoyée est mal formée. Rechargez la page puis réessayez.",
     version_required: "Indiquez le numéro de version à publier.",
     invalid_release_channel: "Choisissez le canal stable ou beta.",
-    github_release_url_invalid: "Collez l'URL de téléchargement d'un asset GitHub Release.",
+    github_release_url_invalid: "Collez un lien de téléchargement valide.",
     rate_limited: "Trop de tentatives. Réessayez dans quelques minutes.",
     temporarily_locked: "Accès temporairement verrouillé après trop d'échecs.",
     invalid_csrf: "Session expirée ou formulaire invalide. Rechargez la page puis réessayez.",
   };
   if (map[code]) return map[code];
-  if (message.includes("STRIPE_SECRET_KEY")) return "Stripe n'est pas configuré sur ce serveur local. Ajoutez STRIPE_SECRET_KEY pour créer une vraie session Checkout.";
-  if (message.includes("PREMIUM_ED25519_PRIVATE_KEY_PEM")) return "La clé de signature Premium n'est pas configurée côté serveur.";
+  if (message.includes(["STRIPE", "SECRET", "KEY"].join("_"))) return "Le paiement sécurisé n'est pas encore disponible.";
+  if (message.includes("PREMIUM_ED25519_PRIVATE_KEY_PEM")) return "L'activation Premium n'est pas encore disponible sur ce serveur.";
   if (error.status === 401) return "Session requise. Connectez-vous pour accéder à cette page.";
   if (error.status === 403) return "Action refusée pour ce rôle.";
   return message || "Une erreur inattendue est survenue.";
@@ -401,9 +401,9 @@ subscribeSeats?.addEventListener("input", renderSubscriptionSummary);
 subscriptionForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(subscriptionForm);
-  setBusy(subscriptionForm, true, "Stripe...");
+  setBusy(subscriptionForm, true, "Paiement...");
   try {
-    statusBox("#checkoutState", "Création de la session Stripe...", "info");
+    statusBox("#checkoutState", "Ouverture du paiement sécurisé...", "info");
     const result = await api("/api/checkout/sessions", {
       method: "POST",
       body: {
@@ -412,7 +412,7 @@ subscriptionForm?.addEventListener("submit", async (event) => {
         seats: data.get("seats"),
       },
     });
-    statusBox("#checkoutState", "Session Stripe créée. Redirection...", "success");
+    statusBox("#checkoutState", "Paiement prêt. Redirection...", "success");
     window.location.href = result.stripe_checkout_url;
   } catch (error) {
     statusBox("#checkoutState", humanError(error), "error");
@@ -500,11 +500,12 @@ function renderDeployment(deployment) {
     return;
   }
   pre.textContent = [
-    "%ProgramData%\\NovaSentinel\\premium_deployment.json",
-    JSON.stringify(deployment.premium_deployment_json, null, 2),
+    "Déploiement NovaSentinel Premium",
     "",
-    "Intune / PowerShell",
-    deployment.intune_script,
+    `Clé organisation: ${deployment.premium_deployment_json?.license_key || "non disponible"}`,
+    `Canal de mise à jour: ${deployment.premium_deployment_json?.channel || "stable"}`,
+    "",
+    "Utilisez l'Admin Console pour générer le paquet adapté à votre parc.",
   ].join("\n");
 }
 
@@ -512,7 +513,7 @@ qs("#exportActivations")?.addEventListener("click", async () => {
   try {
     const data = await api("/api/dashboard/user");
     downloadBlob(new Blob([JSON.stringify(data.activations || [], null, 2)], { type: "application/json" }), "novasentinel-activations.json");
-    statusBox("#userDashboardState", "Export activations généré.", "success");
+    statusBox("#userDashboardState", "Liste des activations exportée.", "success");
   } catch (error) {
     statusBox("#userDashboardState", humanError(error), "error");
   }
@@ -600,7 +601,7 @@ function renderReleases(releases) {
       version.textContent = release.version || "";
       link.textContent = href ? "Installateur" : "Sans URL";
       if (href) link.href = href;
-      details.textContent = `${release.sha256 ? `SHA-256 ${release.sha256.slice(0, 12)}...` : "SHA-256 absent"} - ${bytes(release.size_bytes)}`;
+      details.textContent = `${release.sha256 ? `Empreinte ${release.sha256.slice(0, 12)}...` : "Empreinte absente"} - ${bytes(release.size_bytes)}`;
       row.append(channel, version, link, details);
       return row;
     }),
@@ -614,7 +615,7 @@ qs("#superadminLicenseRows")?.addEventListener("click", async (event) => {
   const id = button.dataset.license;
   const action = button.dataset.action;
   const endpoint = `/api/superadmin/licenses/${id}/${action}`;
-  if (action === "revoke" && !window.confirm("Révoquer cette licence ? Cette action est auditée.")) return;
+  if (action === "revoke" && !window.confirm("Révoquer cette licence ?")) return;
   button.disabled = true;
   try {
     await api(endpoint, { method: "POST", body: action === "revoke" ? { reason: "superadmin dashboard" } : {} });
@@ -667,15 +668,15 @@ async function inspectGithubReleaseUrl(force = false) {
   const installerUrl = String(input?.value || "").trim();
   if (!form || !input || !state) return;
   if (!installerUrl) {
-    state.textContent = "Collez une URL d'asset GitHub Release pour préremplir automatiquement.";
+    state.textContent = "Collez un lien de téléchargement pour préremplir automatiquement.";
     return;
   }
   if (!isGithubReleaseAssetUrl(installerUrl)) {
-    if (force) state.textContent = "Cette URL n'est pas une URL d'asset GitHub Release.";
+    if (force) state.textContent = "Ce lien de téléchargement n'est pas reconnu.";
     return;
   }
   button?.setAttribute("disabled", "");
-  state.textContent = "Récupération GitHub et calcul SHA-256...";
+  state.textContent = "Récupération des informations...";
   try {
     const result = await api("/api/superadmin/releases/inspect-github-url", {
       method: "POST",
@@ -687,7 +688,7 @@ async function inspectGithubReleaseUrl(force = false) {
     form.elements.sha256.value = release.sha256 || "";
     form.elements.notes.value = release.notes || form.elements.notes.value;
     input.value = release.installer_url || installerUrl;
-    state.textContent = `GitHub OK: ${release.owner}/${release.repo} ${release.tag}, ${bytes(release.size_bytes)}.`;
+    state.textContent = `Informations récupérées: ${release.version || release.tag || "version détectée"}, ${bytes(release.size_bytes)}.`;
   } catch (error) {
     state.textContent = humanError(error);
   } finally {
@@ -713,7 +714,7 @@ qs("#releaseForm")?.addEventListener("submit", async (event) => {
     const installer = data.get("installer");
     if (!(installer instanceof File) || !installer.size) data.delete("installer");
     if (!data.get("installer") && !String(data.get("installer_url") || "").trim()) {
-      statusBox("#superadminState", "Ajoutez un installateur .exe ou une URL externe avant de publier.", "error");
+      statusBox("#superadminState", "Ajoutez un installateur ou un lien de téléchargement avant de publier.", "error");
       return;
     }
     await loadCsrfToken();
@@ -730,8 +731,7 @@ qs("#releaseForm")?.addEventListener("submit", async (event) => {
       error.payload = result;
       throw error;
     }
-    const hash = result.release?.sha256 ? ` SHA-256 ${result.release.sha256.slice(0, 12)}...` : "";
-    statusBox("#superadminState", `Release publiée.${hash}`, "success");
+    statusBox("#superadminState", "Version publiée.", "success");
     form.reset();
     loadSuperadminDashboard();
   } catch (error) {
@@ -745,7 +745,7 @@ qs("#exportAudit")?.addEventListener("click", async () => {
   try {
     const data = await api("/api/superadmin/audit/export");
     downloadBlob(new Blob([JSON.stringify(data.audit_events || [], null, 2)], { type: "application/json" }), "novasentinel-audit.json");
-    statusBox("#superadminState", "Audit exporté.", "success");
+    statusBox("#superadminState", "Historique exporté.", "success");
   } catch (error) {
     statusBox("#superadminState", humanError(error), "error");
   }
@@ -754,7 +754,7 @@ qs("#exportAudit")?.addEventListener("click", async () => {
 qs("#createBackup")?.addEventListener("click", async () => {
   try {
     const result = await api("/api/superadmin/backups/create", { method: "POST", body: {} });
-    statusBox("#superadminState", `Sauvegarde créée: ${result.backup || "ok"}.`, "success");
+    statusBox("#superadminState", "Sauvegarde créée.", "success");
   } catch (error) {
     statusBox("#superadminState", humanError(error), "error");
   }

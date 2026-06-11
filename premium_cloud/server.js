@@ -1570,15 +1570,15 @@ function serveStatic(req, res, url) {
     }
   }
   if (url.pathname === "/assets/novasentinel_icon.png") {
-    serveFile(res, path.join(repoDir, "installer", "novasentinel_icon.png"));
+    serveFile(res, path.join(rootDir, "assets", "novasentinel_icon.png"));
     return;
   }
   if (url.pathname === "/assets/novasentinel_icon.ico") {
-    serveFile(res, path.join(repoDir, "installer", "novasentinel_icon.ico"));
+    serveFile(res, path.join(rootDir, "assets", "novasentinel_icon.ico"));
     return;
   }
   if (url.pathname === "/favicon.ico") {
-    serveFile(res, path.join(repoDir, "installer", "novasentinel_icon.ico"));
+    serveFile(res, path.join(rootDir, "assets", "novasentinel_icon.ico"));
     return;
   }
   if (url.pathname === "/downloads/NovaSentinelSetup.exe") {

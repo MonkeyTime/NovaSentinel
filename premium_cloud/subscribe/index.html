@@ -25,7 +25,7 @@
         <div class="section-head">
           <p class="eyebrow">Plan unique</p>
           <h1>NovaSentinel Premium</h1>
-          <p>Une seule offre, facturée au nombre de postes. La licence est créée uniquement après un webhook Stripe signé.</p>
+          <p>Une seule offre, facturée au nombre de postes. Votre accès Premium est préparé après le paiement sécurisé.</p>
         </div>
       </section>
 
@@ -40,7 +40,7 @@
               <small>Toutes les options Premium. Pas de plan Pro, Business ou Enterprise.</small>
             </div>
             <label>Nombre de postes<input id="subscribeSeats" name="seats" type="number" min="1" max="5000" value="25" required /></label>
-            <button class="button primary" type="submit">Continuer avec Stripe</button>
+            <button class="button primary" type="submit">Continuer vers le paiement</button>
           </form>
 
           <aside class="order-card">
@@ -50,8 +50,8 @@
               <div><dt>Postes</dt><dd id="subscribeSeatSummary">25</dd></div>
               <div><dt>Total mensuel</dt><dd id="subscribePriceSummary">300 EUR</dd></div>
             </dl>
-            <div id="checkoutState" class="license-result"><span>Prêt à créer une session Stripe.</span></div>
-            <p class="stripe-note">En local, configurez `STRIPE_SECRET_KEY` et `STRIPE_WEBHOOK_SECRET`. Sans Stripe, utilisez l'émission manuelle depuis le dashboard superadmin.</p>
+            <div id="checkoutState" class="license-result"><span>Prêt à ouvrir le paiement sécurisé.</span></div>
+            <p class="stripe-note">Paiement sécurisé par Stripe. Après validation, votre accès Premium est prêt à être activé.</p>
           </aside>
         </div>
       </section>

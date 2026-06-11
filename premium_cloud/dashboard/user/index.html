@@ -52,7 +52,7 @@
             <div class="admin-action-grid">
               <a class="button secondary" href="/downloads/NovaSentinelSetup.exe">Télécharger NovaSentinel</a>
               <button id="copyOrgKey" type="button">Copier clé organisation</button>
-              <button type="button" onclick="showPanel('deploy')">Voir script Intune</button>
+              <button type="button" onclick="showPanel('deploy')">Préparer le déploiement</button>
               <button id="exportActivations" type="button">Exporter activations</button>
             </div>
           </div>
@@ -72,7 +72,7 @@
         <div class="superadmin-panel" data-panel="deploy">
           <div class="panel-card">
             <h2>Déploiement automatique</h2>
-            <p>Déposez le JSON dans `%ProgramData%\NovaSentinel\premium_deployment.json` ou utilisez le script Intune.</p>
+            <p>Préparez rapidement l'activation Premium sur plusieurs postes avec les outils fournis par NovaSentinel.</p>
             <pre id="deploymentScript">Chargement...</pre>
           </div>
         </div>
@@ -82,8 +82,8 @@
             <h2>Sécurité du compte</h2>
             <ul class="security-list">
               <li>2FA obligatoire pour les administrateurs de l'organisation.</li>
-              <li>La clé organisation n'est affichée qu'après session serveur valide.</li>
-              <li>Chaque claim, login et action sensible est inscrit dans l'audit log.</li>
+              <li>La clé organisation n'est affichée qu'après une connexion valide.</li>
+              <li>Les connexions et actions sensibles sont suivies dans l'historique de sécurité.</li>
             </ul>
           </div>
         </div>
