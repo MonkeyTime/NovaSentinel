@@ -16,6 +16,8 @@ PORT="${NOVASENTINEL_CLOUD_PORT:-8780}"
 DATA_DIR="${NOVASENTINEL_PREMIUM_DB_DIR:-/var/lib/$APP_NAME}"
 DB_PATH="${NOVASENTINEL_PREMIUM_DB:-$DATA_DIR/premium_cloud.sqlite3}"
 DOWNLOAD_DIR="${NOVASENTINEL_DOWNLOAD_DIR:-$DATA_DIR/downloads}"
+GITHUB_REPO="${NOVASENTINEL_GITHUB_REPO:-MonkeyTime/NovaSentinel}"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
 log() {
   printf '[NovaSentinel deploy] %s\n' "$*"
@@ -52,6 +54,56 @@ copy_download_asset() {
   install -m 0640 -o "$APP_USER" -g "$APP_GROUP" "$source" "$DOWNLOAD_DIR/$(basename "$source")"
   install -m 0640 -o "$APP_USER" -g "$APP_GROUP" "$source" "$DOWNLOAD_DIR/$canonical_name"
   log "Download asset ready: $DOWNLOAD_DIR/$canonical_name <- $(basename "$source")"
+}
+
+download_github_release_asset() {
+  local regex="$1"
+  local canonical_name="$2"
+  log "Looking for GitHub Release asset matching $regex in $GITHUB_REPO."
+  GITHUB_REPO="$GITHUB_REPO" \
+  GITHUB_TOKEN="$GITHUB_TOKEN" \
+  ASSET_REGEX="$regex" \
+  DOWNLOAD_DIR="$DOWNLOAD_DIR" \
+  CANONICAL_NAME="$canonical_name" \
+  node <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const repo = process.env.GITHUB_REPO;
+const token = process.env.GITHUB_TOKEN || "";
+const assetRegex = new RegExp(process.env.ASSET_REGEX, "i");
+const downloadDir = process.env.DOWNLOAD_DIR;
+const canonicalName = process.env.CANONICAL_NAME;
+
+async function request(url, accept = "application/vnd.github+json") {
+  const response = await fetch(url, {
+    headers: {
+      "Accept": accept,
+      "User-Agent": "NovaSentinel-Ubuntu-Deploy",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`${url} failed: HTTP ${response.status}`);
+  }
+  return response;
+}
+
+const releaseResponse = await request(`https://api.github.com/repos/${repo}/releases/latest`);
+const release = await releaseResponse.json();
+const assets = Array.isArray(release.assets) ? release.assets : [];
+const asset = assets.find((candidate) => assetRegex.test(candidate.name || ""));
+if (!asset) {
+  throw new Error(`No matching asset in latest release ${release.tag_name || ""}`);
+}
+
+const assetResponse = await request(asset.browser_download_url, "application/octet-stream");
+const bytes = Buffer.from(await assetResponse.arrayBuffer());
+fs.mkdirSync(downloadDir, { recursive: true });
+fs.writeFileSync(path.join(downloadDir, asset.name), bytes);
+fs.writeFileSync(path.join(downloadDir, canonicalName), bytes);
+console.log(`Downloaded ${asset.name} as ${canonicalName}`);
+NODE
 }
 
 run_as_app_user() {
@@ -136,11 +188,17 @@ admin_console_asset="$(latest_matching_file "novasentinel-admin-console-*.zip" "
 copy_download_asset "$installer_asset" "NovaSentinelSetup.exe"
 copy_download_asset "$admin_console_asset" "NovaSentinelAdminConsole.zip"
 if [[ -z "$installer_asset" ]]; then
-  log "No NovaSentinel installer asset found; keeping any existing $DOWNLOAD_DIR/NovaSentinelSetup.exe"
+  if ! download_github_release_asset '^NovaSentinel-Setup-.+\.exe$' "NovaSentinelSetup.exe"; then
+    log "No NovaSentinel installer asset found locally or on latest GitHub Release; keeping any existing $DOWNLOAD_DIR/NovaSentinelSetup.exe"
+  fi
 fi
 if [[ -z "$admin_console_asset" ]]; then
-  log "No Admin Console zip asset found; keeping any existing $DOWNLOAD_DIR/NovaSentinelAdminConsole.zip"
+  if ! download_github_release_asset '^novasentinel-admin-console-.+\.zip$' "NovaSentinelAdminConsole.zip"; then
+    log "No Admin Console zip asset found locally or on latest GitHub Release; keeping any existing $DOWNLOAD_DIR/NovaSentinelAdminConsole.zip"
+  fi
 fi
+chown -R "$APP_USER:$APP_GROUP" "$DOWNLOAD_DIR"
+chmod -R 0750 "$DOWNLOAD_DIR"
 
 cat > /etc/systemd/system/$APP_NAME.service <<EOF
 [Unit]
