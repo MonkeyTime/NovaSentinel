@@ -245,6 +245,7 @@ function initDb() {
   migrateColumn("releases", "sha256", "TEXT");
   migrateColumn("releases", "size_bytes", "INTEGER");
   migrateColumn("releases", "notes", "TEXT");
+  migrateColumn("checkout_sessions", "license_id", "INTEGER");
 }
 
 function migrateColumn(table, column, definition) {
@@ -698,7 +699,55 @@ function verifyStripeSignature(rawBody, signatureHeader) {
   }
 }
 
-function createLicenseFromCheckout(sessionId, stripeSessionId) {
+function validatePaidStripeCheckout(checkout, stripeSession) {
+  if (!stripeSession || typeof stripeSession !== "object") {
+    const error = new Error("Session Stripe invalide.");
+    error.statusCode = 400;
+    error.code = "invalid_stripe_session";
+    throw error;
+  }
+  if (String(stripeSession.id || "") !== String(checkout.stripe_session_id || "")) {
+    const error = new Error("Session Stripe inattendue pour ce paiement.");
+    error.statusCode = 400;
+    error.code = "stripe_session_mismatch";
+    throw error;
+  }
+  if (String(stripeSession.client_reference_id || stripeSession.metadata?.local_session_id || "") !== String(checkout.id)) {
+    const error = new Error("Reference Stripe invalide pour ce paiement.");
+    error.statusCode = 400;
+    error.code = "stripe_reference_mismatch";
+    throw error;
+  }
+  if (String(stripeSession.payment_status || "") !== "paid") {
+    const error = new Error("Paiement Stripe non confirme.");
+    error.statusCode = 402;
+    error.code = "stripe_payment_not_paid";
+    throw error;
+  }
+  if (String(stripeSession.currency || "").toLowerCase() !== "eur") {
+    const error = new Error("Devise Stripe inattendue.");
+    error.statusCode = 400;
+    error.code = "stripe_currency_mismatch";
+    throw error;
+  }
+  const expectedAmountCents = Number(checkout.amount_eur) * 100;
+  const paidAmountCents = Number(stripeSession.amount_total || 0);
+  if (!Number.isFinite(paidAmountCents) || paidAmountCents !== expectedAmountCents) {
+    const error = new Error("Montant Stripe inattendu pour ce nombre de postes.");
+    error.statusCode = 400;
+    error.code = "stripe_amount_mismatch";
+    throw error;
+  }
+  const metadataSeats = Number.parseInt(String(stripeSession.metadata?.seats || checkout.seats), 10);
+  if (!Number.isFinite(metadataSeats) || metadataSeats !== Number(checkout.seats)) {
+    const error = new Error("Nombre de postes Stripe inattendu.");
+    error.statusCode = 400;
+    error.code = "stripe_seats_mismatch";
+    throw error;
+  }
+}
+
+function createLicenseFromPaidCheckout(sessionId, stripeSession) {
   const checkout = db.prepare("SELECT * FROM checkout_sessions WHERE id = ?").get(sessionId);
   if (!checkout) {
     const error = new Error("Session checkout inconnue.");
@@ -706,8 +755,10 @@ function createLicenseFromCheckout(sessionId, stripeSessionId) {
     throw error;
   }
   if (checkout.status === "confirmed") {
+    if (checkout.license_id) return db.prepare("SELECT * FROM licenses WHERE id = ?").get(checkout.license_id);
     return db.prepare("SELECT * FROM licenses WHERE organization_id = (SELECT id FROM organizations WHERE billing_email = ? ORDER BY id DESC LIMIT 1) ORDER BY id DESC LIMIT 1").get(checkout.billing_email);
   }
+  validatePaidStripeCheckout(checkout, stripeSession);
   const insertOrg = db.prepare("INSERT INTO organizations(name, billing_email, created_at) VALUES (?, ?, ?)");
   const orgResult = insertOrg.run(checkout.organization_name, checkout.billing_email, nowIso());
   const organizationId = Number(orgResult.lastInsertRowid);
@@ -726,12 +777,13 @@ function createLicenseFromCheckout(sessionId, stripeSessionId) {
   db.prepare(
     "INSERT INTO organization_invites(id, organization_id, license_id, email, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
   ).run(inviteId, organizationId, licenseId, checkout.billing_email, nowEpoch() + 7 * 24 * 60 * 60, nowIso());
-  db.prepare("UPDATE checkout_sessions SET status = 'confirmed', stripe_session_id = COALESCE(?, stripe_session_id), confirmed_at = ? WHERE id = ?").run(
-    stripeSessionId || null,
-    nowIso(),
-    sessionId,
-  );
-  audit(null, "stripe_checkout_completed_license_created", "license", licenseId, { session_id: sessionId, stripe_session_id: stripeSessionId || "" });
+  db.prepare("UPDATE checkout_sessions SET status = 'confirmed', license_id = ?, confirmed_at = ? WHERE id = ?").run(licenseId, nowIso(), sessionId);
+  audit(null, "stripe_checkout_paid_license_created", "license", licenseId, {
+    session_id: sessionId,
+    stripe_session_id: stripeSession.id || "",
+    seats: checkout.seats,
+    amount_eur: checkout.amount_eur,
+  });
   return db.prepare("SELECT * FROM licenses WHERE id = ?").get(licenseId);
 }
 
@@ -1234,10 +1286,21 @@ async function handleApi(req, res, url) {
       error.code = "invalid_stripe_payload";
       throw error;
     }
-    if (event.type === "checkout.session.completed") {
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       const stripeSession = event.data.object;
       const localSessionId = stripeSession.client_reference_id || stripeSession.metadata?.local_session_id;
-      const license = createLicenseFromCheckout(localSessionId, stripeSession.id);
+      if (event.type === "checkout.session.completed" && stripeSession.payment_status !== "paid") {
+        db.prepare("UPDATE checkout_sessions SET status = 'pending_payment', stripe_session_id = COALESCE(?, stripe_session_id) WHERE id = ?").run(
+          stripeSession.id || null,
+          localSessionId || "",
+        );
+        audit(null, "stripe_checkout_completed_waiting_payment", "checkout_session", localSessionId || "", {
+          stripe_session_id: stripeSession.id || "",
+          payment_status: stripeSession.payment_status || "",
+        });
+        return json(res, 200, { received: true, pending_payment: true });
+      }
+      const license = createLicenseFromPaidCheckout(localSessionId, stripeSession);
       return json(res, 200, { received: true, license_id: license.id });
     }
     audit(null, "stripe_webhook_ignored", "stripe_event", event.id || event.type, { type: event.type });
