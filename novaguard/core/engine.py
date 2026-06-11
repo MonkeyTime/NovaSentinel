@@ -205,6 +205,17 @@ class NovaSentinelEngine:
     def panic_mode(self) -> None:
         self.ransomware_guard.manual_panic()
 
+    def release_panic_mode(self) -> None:
+        released = self.process_guard.release_panic_mode()
+        self.record_event(
+            EventRecord(
+                timestamp=datetime.now().isoformat(timespec="seconds"),
+                level="info",
+                title="Manual panic mode released",
+                description=f"Write protection released for {len(released)} protected folder(s).",
+            )
+        )
+
     def record_result(self, result: ScanResult) -> None:
         if result.attack is None:
             result.attack = correlate_scan_result(result)
@@ -338,44 +349,24 @@ class NovaSentinelEngine:
         scan_cancelled = False
         failure_reason = ""
         try:
-            known_total_scan_handled = False
-            if label == "Quick scan" and hasattr(self.scanner, "scan_files"):
-                known_total_scan_handled = True
-                files = self._discover_scan_files(label, targets)
+            self._start_background_total_counter(label, targets, scan_session_id)
+            total_targets = max(len(targets), 1)
+            for target_index, target in enumerate(targets, start=1):
                 if self.scan_cancel_event.is_set():
                     scan_cancelled = True
-                else:
-                    results = self.scanner.scan_files(
-                        files,
-                        progress_callback=self._known_total_progress_callback(label, len(files)),
-                        result_callback=self._scan_result_callback,
-                        error_callback=self._scan_error_callback,
-                        cancel_callback=self.scan_cancel_event.is_set,
-                    )
-                    session_results += len(results)
-                    if self.scan_cancel_event.is_set():
-                        scan_cancelled = True
-                    else:
-                        self._quarantine_scan_results(results)
-            if not known_total_scan_handled:
-                self._start_background_total_counter(label, targets, scan_session_id)
-                total_targets = max(len(targets), 1)
-                for target_index, target in enumerate(targets, start=1):
-                    if self.scan_cancel_event.is_set():
-                        scan_cancelled = True
-                        break
-                    results = self.scanner.scan_target(
-                        target,
-                        progress_callback=self._progress_callback(label, target_index, total_targets),
-                        result_callback=self._scan_result_callback,
-                        error_callback=self._scan_error_callback,
-                        cancel_callback=self.scan_cancel_event.is_set,
-                    )
-                    session_results += len(results)
-                    if self.scan_cancel_event.is_set():
-                        scan_cancelled = True
-                        break
-                    self._quarantine_scan_results(results)
+                    break
+                results = self.scanner.scan_target(
+                    target,
+                    progress_callback=self._progress_callback(label, target_index, total_targets),
+                    result_callback=self._scan_result_callback,
+                    error_callback=self._scan_error_callback,
+                    cancel_callback=self.scan_cancel_event.is_set,
+                )
+                session_results += len(results)
+                if self.scan_cancel_event.is_set():
+                    scan_cancelled = True
+                    break
+                self._quarantine_scan_results(results)
         except Exception as exc:
             scan_failed = True
             failure_reason = str(exc)

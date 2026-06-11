@@ -96,6 +96,22 @@ class ProcessGuard:
         self.stop_event.set()
         self.lockdown.release()
 
+    def release_panic_mode(self) -> list[str]:
+        self.panic_mode_until = 0.0
+        released = self.lockdown.release()
+        self.on_event(
+            EventRecord(
+                timestamp=datetime.now().isoformat(timespec="seconds"),
+                level="info",
+                title="Panic mode released",
+                description=(
+                    "NovaSentinel released manual panic mode and restored write access "
+                    f"to {len(released)} protected folder(s)."
+                ),
+            )
+        )
+        return released
+
     def emergency_contain(self, trigger_path: str = "", reason: str = "panic mode", related_paths: list[str] | None = None) -> None:
         if not self.settings.ransomware_guard_enabled:
             return

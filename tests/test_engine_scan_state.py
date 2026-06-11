@@ -148,48 +148,33 @@ def test_background_total_counter_updates_streaming_scan_progress(monkeypatch, t
     assert engine.state["scan_progress"] == 3 / 5
 
 
-def test_quick_scan_uses_global_known_file_total(monkeypatch, tmp_path):
+def test_quick_scan_starts_streaming_without_full_discovery(monkeypatch, tmp_path):
     monkeypatch.setattr(engine_module, "save_json_list", lambda path, items: None)
     first_root = tmp_path / "first"
     second_root = tmp_path / "second"
     first_root.mkdir()
     second_root.mkdir()
-    files = [
-        first_root / "one.txt",
-        first_root / "two.txt",
-        second_root / "three.txt",
-    ]
-    for path in files:
-        path.write_text("hello", encoding="utf-8")
-    pre_scan_progress: list[float] = []
+    calls: list[tuple[str, str]] = []
     scan_progress: list[float] = []
 
-    def fake_iter_files(root: Path, exclusions, inclusions=None):
-        if root == first_root:
-            yield files[0]
-            yield files[1]
-        elif root == second_root:
-            yield files[2]
-
-    monkeypatch.setattr(engine_module, "iter_files", fake_iter_files)
-
     engine = _engine_without_services()
+    monkeypatch.setattr(engine, "_start_background_total_counter", lambda *args, **kwargs: None)
 
     class FakeScanner:
         def scan_files(self, discovered_files, progress_callback, result_callback, error_callback, cancel_callback=None):
-            pre_scan_progress.append(engine.state["scan_progress"])
-            assert discovered_files == files
-            progress_callback(str(discovered_files[0]), 1, len(discovered_files))
-            scan_progress.append(engine.state["scan_progress"])
-            progress_callback(str(discovered_files[-1]), 3, len(discovered_files))
+            raise AssertionError("Quick scan should stream through scan_target")
+
+        def scan_target(self, target, progress_callback, result_callback, error_callback, cancel_callback=None):
+            calls.append(("scan_target", target))
+            progress_callback(str(Path(target) / "sample.txt"), 1, 0)
             scan_progress.append(engine.state["scan_progress"])
             return []
 
     engine.scanner = FakeScanner()
     engine._run_scan("Quick scan", [str(first_root), str(second_root)])
 
-    assert pre_scan_progress == [UNKNOWN_SCAN_PROGRESS_FRACTION]
-    assert scan_progress == [1 / 3, 1.0]
+    assert calls == [("scan_target", str(first_root)), ("scan_target", str(second_root))]
+    assert scan_progress == [0.01, 0.51]
     assert engine.state["last_scan_summary"] == "Quick scan completed: 2 files, 0 threats."
 
 

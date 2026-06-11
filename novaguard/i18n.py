@@ -1262,7 +1262,69 @@ _TRANSLATION_COMPLETIONS = {
     },
 }
 
+_PANIC_RELEASE_TRANSLATIONS = {
+    "en": {
+        "ransomware.release_panic": "Release panic mode",
+        "ransomware.release_panic.confirm_title": "Release panic mode?",
+        "ransomware.release_panic.confirm_body": "NovaSentinel will remove the temporary write locks from protected folders and stop the manual panic window.",
+        "ransomware.release_panic.done": "Panic mode released: protected folders are writable again.",
+        "scan.discovering": "discovering",
+        "scan.files_suffix": "files",
+    },
+    "fr": {
+        "ransomware.release_panic": "Relâcher le mode panique",
+        "ransomware.release_panic.confirm_title": "Relâcher le mode panique ?",
+        "ransomware.release_panic.confirm_body": "NovaSentinel va retirer les verrouillages temporaires des dossiers protégés et stopper la fenêtre de panique manuelle.",
+        "ransomware.release_panic.done": "Mode panique relâché : les dossiers protégés sont de nouveau modifiables.",
+        "scan.discovering": "découverte",
+        "scan.files_suffix": "fichiers",
+    },
+    "es": {
+        "ransomware.release_panic": "Liberar modo panico",
+        "ransomware.release_panic.confirm_title": "Liberar modo panico?",
+        "ransomware.release_panic.confirm_body": "NovaSentinel quitara los bloqueos temporales de las carpetas protegidas y detendra la ventana de panico manual.",
+        "ransomware.release_panic.done": "Modo panico liberado: las carpetas protegidas vuelven a ser modificables.",
+        "scan.discovering": "descubriendo",
+        "scan.files_suffix": "archivos",
+    },
+    "de": {
+        "ransomware.release_panic": "Panikmodus freigeben",
+        "ransomware.release_panic.confirm_title": "Panikmodus freigeben?",
+        "ransomware.release_panic.confirm_body": "NovaSentinel entfernt die temporaeren Schreibsperren geschuetzter Ordner und beendet das manuelle Panikfenster.",
+        "ransomware.release_panic.done": "Panikmodus freigegeben: Geschuetzte Ordner sind wieder beschreibbar.",
+        "scan.discovering": "suche",
+        "scan.files_suffix": "Dateien",
+    },
+    "it": {
+        "ransomware.release_panic": "Rilascia modalita panico",
+        "ransomware.release_panic.confirm_title": "Rilasciare la modalita panico?",
+        "ransomware.release_panic.confirm_body": "NovaSentinel rimuovera i blocchi temporanei dalle cartelle protette e fermera la finestra panico manuale.",
+        "ransomware.release_panic.done": "Modalita panico rilasciata: le cartelle protette sono di nuovo scrivibili.",
+        "scan.discovering": "scoperta",
+        "scan.files_suffix": "file",
+    },
+    "pt": {
+        "ransomware.release_panic": "Libertar modo panico",
+        "ransomware.release_panic.confirm_title": "Libertar modo panico?",
+        "ransomware.release_panic.confirm_body": "O NovaSentinel ira remover os bloqueios temporarios das pastas protegidas e parar a janela de panico manual.",
+        "ransomware.release_panic.done": "Modo panico libertado: as pastas protegidas podem ser escritas novamente.",
+        "scan.discovering": "descoberta",
+        "scan.files_suffix": "ficheiros",
+    },
+    "ar": {
+        "ransomware.release_panic": "إيقاف وضع الطوارئ",
+        "ransomware.release_panic.confirm_title": "إيقاف وضع الطوارئ؟",
+        "ransomware.release_panic.confirm_body": "سيزيل NovaSentinel أقفال الكتابة المؤقتة من المجلدات المحمية ويوقف نافذة الطوارئ اليدوية.",
+        "ransomware.release_panic.done": "تم إيقاف وضع الطوارئ: أصبحت المجلدات المحمية قابلة للكتابة مرة أخرى.",
+        "scan.discovering": "اكتشاف",
+        "scan.files_suffix": "ملفات",
+    },
+}
+
 for language, values in _TRANSLATION_COMPLETIONS.items():
+    TRANSLATIONS[language].update(values)
+
+for language, values in _PANIC_RELEASE_TRANSLATIONS.items():
     TRANSLATIONS[language].update(values)
 
 

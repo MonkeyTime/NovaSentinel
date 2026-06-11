@@ -79,6 +79,7 @@ def main() -> None:
         on_quick_scan=engine.quick_scan,
         on_toggle_realtime=toggle_realtime,
         on_panic_mode=engine.panic_mode,
+        on_release_panic_mode=engine.release_panic_mode,
         on_exit=exit_app,
         language=engine.get_snapshot()["settings"].language,
     )

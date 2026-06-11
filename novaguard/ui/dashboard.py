@@ -20,11 +20,24 @@ from novaguard.core.premium import fetch_latest_premium_update
 
 
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("green")
+ctk.set_default_color_theme("blue")
 
 
 DEFAULT_WINDOW_GEOMETRY = "1180x720"
 MIN_WINDOW_SIZE = (1040, 640)
+BLUE = {
+    "bg": "#07111f",
+    "panel": "#0b1b2d",
+    "panel_soft": "#0f2742",
+    "panel_lift": "#12345a",
+    "line": "#245a91",
+    "text_soft": "#a9d6ff",
+    "button": "#1d6fd8",
+    "button_hover": "#2d8dff",
+    "danger": "#8f2b4c",
+    "danger_hover": "#b43b63",
+    "success": "#73c7ff",
+}
 
 
 class NovaSentinelWindow(ctk.CTk):
@@ -80,6 +93,7 @@ class NovaSentinelWindow(ctk.CTk):
         self.update_info: UpdateInfo | None = None
         self.update_button: ctk.CTkButton | None = None
         self.first_nav_button: ctk.CTkButton | None = None
+        self.nav_buttons: dict[str, ctk.CTkButton] = {}
         self.update_check_in_progress = False
         self.update_install_in_progress = False
         self.update_notified_tag = ""
@@ -110,6 +124,8 @@ class NovaSentinelWindow(ctk.CTk):
         self.notifier = None
         self.language_change_callback = None
         self.previous_scan_in_progress = False
+        self.scan_animation_tick = 0
+        self.scan_progress_indeterminate = False
         self.last_notified_summary = ""
         self.window_icon = None
         self.hiding_to_tray = False
@@ -142,15 +158,15 @@ class NovaSentinelWindow(ctk.CTk):
         subtitle = ctk.CTkLabel(
             self.sidebar,
             text=self.t("subtitle"),
-            text_color="#9ac8ba",
+            text_color=BLUE["text_soft"],
             justify="left",
         )
         subtitle.pack(padx=24, pady=(0, 18), anchor="w")
         self.update_button = ctk.CTkButton(
             self.sidebar,
             text=self.t("update.button", version=self.update_info.version if self.update_info else ""),
-            fg_color="#28735f",
-            hover_color="#1f5c4d",
+            fg_color=BLUE["button"],
+            hover_color=BLUE["button_hover"],
             command=self.start_update,
         )
         for name, text_key in [
@@ -170,14 +186,19 @@ class NovaSentinelWindow(ctk.CTk):
                 text=self.t(text_key),
                 anchor="w",
                 fg_color="transparent",
-                hover_color="#1f3c35",
+                hover_color=BLUE["panel_lift"],
+                height=38,
+                corner_radius=10,
+                border_width=1,
+                border_color=BLUE["line"],
                 command=lambda value=name: self.show_view(value),
             )
             nav_button.pack(fill="x", padx=18, pady=6)
+            self.nav_buttons[name] = nav_button
             if self.first_nav_button is None:
                 self.first_nav_button = nav_button
         self._refresh_update_button()
-        status_box = ctk.CTkFrame(self.sidebar, fg_color="#102a25")
+        status_box = ctk.CTkFrame(self.sidebar, fg_color=BLUE["panel"])
         status_box.pack(side="bottom", fill="x", padx=18, pady=18)
         ctk.CTkLabel(status_box, text=self.t("background_status"), font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=14, pady=(14, 4))
         ctk.CTkLabel(status_box, textvariable=self.status_var, wraplength=180, justify="left").pack(anchor="w", padx=14, pady=(0, 14))
@@ -199,10 +220,10 @@ class NovaSentinelWindow(ctk.CTk):
         frame.grid_columnconfigure((0, 1, 2), weight=1)
         frame.grid_rowconfigure(2, weight=1)
 
-        hero = ctk.CTkFrame(frame, fg_color="#0f231f")
+        hero = ctk.CTkFrame(frame, fg_color=BLUE["panel"])
         hero.grid(row=0, column=0, columnspan=3, sticky="ew", padx=18, pady=18)
         ctk.CTkLabel(hero, text=self.t("dashboard.title"), font=ctk.CTkFont(size=30, weight="bold")).pack(anchor="w", padx=20, pady=(18, 4))
-        ctk.CTkLabel(hero, textvariable=self.scan_var, text_color="#a8d5c4", wraplength=980, justify="left").pack(anchor="w", padx=20, pady=(0, 18))
+        ctk.CTkLabel(hero, textvariable=self.scan_var, text_color=BLUE["text_soft"], wraplength=980, justify="left").pack(anchor="w", padx=20, pady=(0, 18))
 
         self._metric_card(frame, 1, 0, self.t("card.realtime.title"), self.t("card.realtime.body"))
         self._metric_card(frame, 1, 1, self.t("card.ransomware.title"), self.t("card.ransomware.body"))
@@ -221,18 +242,18 @@ class NovaSentinelWindow(ctk.CTk):
         return frame
 
     def _metric_card(self, parent: ctk.CTkFrame, row: int, column: int, title: str, body: str) -> None:
-        card = ctk.CTkFrame(parent, fg_color="#142d27")
+        card = ctk.CTkFrame(parent, fg_color=BLUE["panel_soft"], border_width=1, border_color=BLUE["line"])
         card.grid(row=row, column=column, sticky="nsew", padx=18, pady=(0, 18))
         ctk.CTkLabel(card, text=title, font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=18, pady=(18, 8))
-        ctk.CTkLabel(card, text=body, wraplength=260, justify="left", text_color="#add8ca").pack(anchor="w", padx=18, pady=(0, 18))
+        ctk.CTkLabel(card, text=body, wraplength=260, justify="left", text_color=BLUE["text_soft"]).pack(anchor="w", padx=18, pady=(0, 18))
 
     def _scan_view(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.content)
         frame.pack_propagate(False)
-        header = ctk.CTkFrame(frame, fg_color="#102823")
+        header = ctk.CTkFrame(frame, fg_color=BLUE["panel"], border_width=1, border_color=BLUE["line"])
         header.pack(fill="x", padx=18, pady=18)
         ctk.CTkLabel(header, text=self.t("scan.title"), font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w", padx=18, pady=(18, 4))
-        ctk.CTkLabel(header, textvariable=self.quick_summary_var, text_color="#a0cebf").pack(anchor="w", padx=18, pady=(0, 18))
+        ctk.CTkLabel(header, textvariable=self.quick_summary_var, text_color=BLUE["text_soft"]).pack(anchor="w", padx=18, pady=(0, 18))
 
         actions = ctk.CTkFrame(frame)
         actions.pack(fill="x", padx=18, pady=(0, 18))
@@ -244,7 +265,7 @@ class NovaSentinelWindow(ctk.CTk):
         pick_button.pack(side="left", padx=10, pady=14)
         target_button = ctk.CTkButton(actions, text=self.t("scan.target"), command=self.scan_custom_target)
         target_button.pack(side="left", padx=10, pady=14)
-        self.stop_scan_button = ctk.CTkButton(actions, text=self.t("scan.stop"), command=self.stop_scan, fg_color="#8f2b2b", hover_color="#6f2020", state="disabled")
+        self.stop_scan_button = ctk.CTkButton(actions, text=self.t("scan.stop"), command=self.stop_scan, fg_color=BLUE["danger"], hover_color=BLUE["danger_hover"], state="disabled")
         self.stop_scan_button.pack(side="left", padx=10, pady=14)
         self.scan_action_buttons = [quick_button, full_button, pick_button, target_button]
         self.target_entry = ctk.CTkEntry(actions, placeholder_text=self.t("scan.placeholder"))
@@ -253,7 +274,7 @@ class NovaSentinelWindow(ctk.CTk):
         progress = ctk.CTkFrame(frame)
         progress.pack(fill="x", padx=18, pady=(0, 18))
         ctk.CTkLabel(progress, text=self.t("scan.progress"), font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", padx=18, pady=(18, 8))
-        ctk.CTkLabel(progress, textvariable=self.scan_status_var, text_color="#a0cebf", wraplength=980, justify="left").pack(anchor="w", padx=18, pady=(0, 8))
+        ctk.CTkLabel(progress, textvariable=self.scan_status_var, text_color=BLUE["text_soft"], wraplength=980, justify="left").pack(anchor="w", padx=18, pady=(0, 8))
         self.progress_bar = ctk.CTkProgressBar(progress)
         self.progress_bar.pack(fill="x", padx=18, pady=(0, 18))
         self.progress_bar.set(0)
@@ -261,7 +282,7 @@ class NovaSentinelWindow(ctk.CTk):
         threats_card = ctk.CTkFrame(frame)
         threats_card.pack(fill="both", expand=True, padx=18, pady=(0, 18))
         ctk.CTkLabel(threats_card, text=self.t("scan.threats"), font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=18, pady=(18, 4))
-        ctk.CTkLabel(threats_card, textvariable=self.scan_threat_count_var, text_color="#a0cebf").pack(anchor="w", padx=18, pady=(0, 10))
+        ctk.CTkLabel(threats_card, textvariable=self.scan_threat_count_var, text_color=BLUE["text_soft"]).pack(anchor="w", padx=18, pady=(0, 10))
         self.scan_threat_tree = self._make_tree(
             threats_card,
             columns=("time", "severity", "score", "file", "detail", "evidence", "status"),
@@ -281,16 +302,17 @@ class NovaSentinelWindow(ctk.CTk):
     def _ransomware_view(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.content)
         ctk.CTkLabel(frame, text=self.t("ransomware.title"), font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w", padx=18, pady=(18, 8))
-        header = ctk.CTkFrame(frame, fg_color="#102823")
+        header = ctk.CTkFrame(frame, fg_color=BLUE["panel"])
         header.pack(fill="x", padx=18, pady=(0, 12))
         ctk.CTkLabel(
             header,
             text=self.t("ransomware.body"),
-            text_color="#a0cebf",
+            text_color=BLUE["text_soft"],
             wraplength=940,
             justify="left",
         ).pack(side="left", fill="x", expand=True, padx=18, pady=14)
-        ctk.CTkButton(header, text=self.t("ransomware.panic"), command=self._confirm_panic_mode).pack(side="right", padx=18, pady=14)
+        ctk.CTkButton(header, text=self.t("ransomware.release_panic"), command=self._confirm_release_panic_mode).pack(side="right", padx=18, pady=14)
+        ctk.CTkButton(header, text=self.t("ransomware.panic"), fg_color=BLUE["danger"], hover_color=BLUE["danger_hover"], command=self._confirm_panic_mode).pack(side="right", padx=(0, 10), pady=14)
 
         self.incident_tree = self._make_tree(
             frame,
@@ -311,7 +333,7 @@ class NovaSentinelWindow(ctk.CTk):
         self.incident_tree.column("tags", width=230, anchor="w")
         self.incident_tree.column("trigger", width=260, anchor="w")
         self.incident_tree.bind("<<TreeviewSelect>>", lambda _event: self._refresh_selected_incident_detail())
-        detail_card = ctk.CTkFrame(frame, fg_color="#102823")
+        detail_card = ctk.CTkFrame(frame, fg_color=BLUE["panel"])
         detail_card.pack(fill="both", expand=True, padx=18, pady=(0, 18))
         ctk.CTkLabel(detail_card, text="Incident detail", font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", padx=18, pady=(12, 4))
         self.incident_detail_text = ctk.CTkTextbox(detail_card, height=210)
@@ -323,12 +345,12 @@ class NovaSentinelWindow(ctk.CTk):
     def _forensics_view(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.content)
         ctk.CTkLabel(frame, text=self.t("forensics.title"), font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w", padx=18, pady=(18, 8))
-        header = ctk.CTkFrame(frame, fg_color="#102823")
+        header = ctk.CTkFrame(frame, fg_color=BLUE["panel"])
         header.pack(fill="x", padx=18, pady=(0, 12))
         ctk.CTkLabel(
             header,
             text=self.t("forensics.body"),
-            text_color="#a0cebf",
+            text_color=BLUE["text_soft"],
             wraplength=940,
             justify="left",
         ).pack(anchor="w", fill="x", padx=18, pady=14)
@@ -359,7 +381,7 @@ class NovaSentinelWindow(ctk.CTk):
         self.forensic_tree.column("connections", width=110, anchor="w")
         self.forensic_tree.bind("<<TreeviewSelect>>", lambda _event: self._refresh_selected_forensic_detail())
 
-        detail_card = ctk.CTkFrame(frame, fg_color="#102823")
+        detail_card = ctk.CTkFrame(frame, fg_color=BLUE["panel"])
         detail_card.pack(fill="both", padx=18, pady=(0, 18))
         ctk.CTkLabel(detail_card, text=self.t("forensics.detail"), font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", padx=18, pady=(12, 4))
         self.forensic_detail_text = ctk.CTkTextbox(detail_card, height=230)
@@ -378,6 +400,17 @@ class NovaSentinelWindow(ctk.CTk):
             return
         self.engine.panic_mode()
         self.status_var.set(self.t("ransomware.panic.started"))
+
+    def _confirm_release_panic_mode(self) -> None:
+        confirmed = messagebox.askyesno(
+            self.t("ransomware.release_panic.confirm_title"),
+            self.t("ransomware.release_panic.confirm_body"),
+            parent=self,
+        )
+        if not confirmed:
+            return
+        self.engine.release_panic_mode()
+        self.status_var.set(self.t("ransomware.release_panic.done"))
 
     def _quarantine_view(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.content)
@@ -410,7 +443,7 @@ class NovaSentinelWindow(ctk.CTk):
     def _settings_view(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.content)
         ctk.CTkLabel(frame, text=self.t("settings.title"), font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w", padx=18, pady=(18, 8))
-        form = ctk.CTkFrame(frame, fg_color="#132b26")
+        form = ctk.CTkFrame(frame, fg_color=BLUE["panel_soft"])
         form.pack(fill="x", padx=18, pady=(0, 18))
 
         settings: AppSettings = self.engine.get_snapshot()["settings"]
@@ -447,7 +480,7 @@ class NovaSentinelWindow(ctk.CTk):
         frame = ctk.CTkFrame(self.content)
         ctk.CTkLabel(frame, text=self.t("premium.title"), font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w", padx=18, pady=(18, 8))
 
-        status_card = ctk.CTkFrame(frame, fg_color="#132b26")
+        status_card = ctk.CTkFrame(frame, fg_color=BLUE["panel_soft"])
         status_card.pack(fill="x", padx=18, pady=(0, 12))
         ctk.CTkLabel(status_card, text=self.t("premium.status_title"), font=ctk.CTkFont(weight="bold")).pack(
             anchor="w", padx=18, pady=(18, 8)
@@ -461,7 +494,7 @@ class NovaSentinelWindow(ctk.CTk):
         )
         self.premium_status_label.pack(anchor="w", padx=18, pady=(0, 12))
 
-        features_card = ctk.CTkFrame(frame, fg_color="#102a25")
+        features_card = ctk.CTkFrame(frame, fg_color=BLUE["panel"])
         features_card.pack(fill="x", padx=18, pady=(0, 12))
         self.premium_features_title_label = ctk.CTkLabel(
             features_card,
@@ -477,7 +510,7 @@ class NovaSentinelWindow(ctk.CTk):
         )
         self.premium_features_value_label.pack(anchor="w", padx=18, pady=(0, 18))
 
-        entitlement_card = ctk.CTkFrame(frame, fg_color="#132b26")
+        entitlement_card = ctk.CTkFrame(frame, fg_color=BLUE["panel_soft"])
         entitlement_card.pack(fill="x", padx=18, pady=(0, 12))
         ctk.CTkLabel(entitlement_card, text=self.t("premium.entitlements_title"), font=ctk.CTkFont(weight="bold")).pack(
             anchor="w", padx=18, pady=(14, 10)
@@ -491,7 +524,7 @@ class NovaSentinelWindow(ctk.CTk):
         self._add_premium_detail_row(details_grid, self._premium_localize("premium.device", "Device"), self.premium_device_var, row=2, col=0)
         self._add_premium_detail_row(details_grid, self._premium_localize("premium.key_hint", "Key"), self.premium_key_mask_var, row=2, col=1)
 
-        activation_card = ctk.CTkFrame(frame, fg_color="#102a25")
+        activation_card = ctk.CTkFrame(frame, fg_color=BLUE["panel"])
         activation_card.pack(fill="x", padx=18, pady=(0, 18))
         ctk.CTkLabel(activation_card, text=self.t("premium.activate"), font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", padx=18, pady=(18, 10))
         self.premium_key_entry = ctk.CTkEntry(activation_card, textvariable=self.premium_key_var, width=500, placeholder_text=self.t("premium.key_placeholder"))
@@ -511,7 +544,7 @@ class NovaSentinelWindow(ctk.CTk):
             width=130,
         )
         self.premium_refresh_button.pack(side="left", padx=(10, 0))
-        ctk.CTkLabel(action_row, textvariable=self.premium_feedback_var, text_color="#8fc5b8", wraplength=740).pack(side="left", padx=(18, 0))
+        ctk.CTkLabel(action_row, textvariable=self.premium_feedback_var, text_color=BLUE["text_soft"], wraplength=740).pack(side="left", padx=(18, 0))
         self.premium_feedback_var.set(self.t("premium.enter_key_hint"))
 
         self._refresh_premium_view()
@@ -520,7 +553,7 @@ class NovaSentinelWindow(ctk.CTk):
     def _add_premium_detail_row(self, parent: ctk.CTkFrame, label: str, value_var: tk.StringVar, row: int, col: int) -> None:
         row_frame = ctk.CTkFrame(parent, fg_color="transparent")
         row_frame.grid(row=row, column=col, padx=(0, 0), pady=(0, 8), sticky="ew")
-        ctk.CTkLabel(row_frame, text=label, width=190, anchor="w", text_color="#c4e9dd", font=ctk.CTkFont(weight="bold")).pack(
+        ctk.CTkLabel(row_frame, text=label, width=190, anchor="w", text_color="#d8ecff", font=ctk.CTkFont(weight="bold")).pack(
             side="left"
         )
         ctk.CTkLabel(
@@ -574,40 +607,40 @@ class NovaSentinelWindow(ctk.CTk):
             pass
         style.configure(
             "Nova.Treeview",
-            background="#0f211d",
-            foreground="#d8eee5",
-            fieldbackground="#0f211d",
+            background="#07111f",
+            foreground="#d8ecff",
+            fieldbackground="#07111f",
             borderwidth=0,
             rowheight=30,
             font=("Segoe UI", 10),
         )
         style.configure(
             "Nova.Treeview.Heading",
-            background="#173a32",
-            foreground="#e5fff4",
+            background="#102f52",
+            foreground="#eef7ff",
             relief="flat",
             font=("Segoe UI", 10, "bold"),
             padding=(8, 6),
         )
         style.map(
             "Nova.Treeview",
-            background=[("selected", "#246b59")],
+            background=[("selected", "#1d6fd8")],
             foreground=[("selected", "#ffffff")],
         )
-        style.map("Nova.Treeview.Heading", background=[("active", "#215447")])
+        style.map("Nova.Treeview.Heading", background=[("active", "#245a91")])
 
     def _configure_tree_tags(self, tree: ttk.Treeview) -> None:
-        tree.tag_configure("row_even", background="#0f211d")
-        tree.tag_configure("row_odd", background="#142a25")
+        tree.tag_configure("row_even", background="#07111f")
+        tree.tag_configure("row_odd", background="#0b1b2d")
         tree.tag_configure("severity_critical", foreground="#ff8b8b")
         tree.tag_configure("severity_high", foreground="#ffbf6b")
         tree.tag_configure("severity_medium", foreground="#f4d35e")
         tree.tag_configure("severity_low", foreground="#8fd8ff")
-        tree.tag_configure("severity_info", foreground="#b9d8ce")
+        tree.tag_configure("severity_info", foreground="#b9d9f6")
         tree.tag_configure("status_quarantined", foreground="#ff8b8b")
         tree.tag_configure("status_contained", foreground="#ffbf6b")
         tree.tag_configure("status_observed", foreground="#8fd8ff")
-        tree.tag_configure("trusted", foreground="#7ee7b7")
+        tree.tag_configure("trusted", foreground="#73c7ff")
 
     def _column_width(self, column: str) -> int:
         return {
@@ -636,6 +669,16 @@ class NovaSentinelWindow(ctk.CTk):
             frame.grid_forget()
         self.frames[name].grid(row=0, column=0, sticky="nsew")
         self.current_view = name
+        self._refresh_nav_selection()
+
+    def _refresh_nav_selection(self) -> None:
+        for name, button in self.nav_buttons.items():
+            active = name == self.current_view
+            button.configure(
+                fg_color=BLUE["button"] if active else "transparent",
+                hover_color=BLUE["button_hover"] if active else BLUE["panel_lift"],
+                text_color="#ffffff" if active else "#d8ecff",
+            )
 
     def t(self, key: str, **kwargs) -> str:
         return tr(self.language, key, **kwargs)
@@ -655,6 +698,7 @@ class NovaSentinelWindow(ctk.CTk):
         self.frames = {}
         self.update_button = None
         self.first_nav_button = None
+        self.nav_buttons = {}
         self.target_entry = None
         self.premium_key_entry = None
         self.premium_activate_button = None
@@ -973,8 +1017,6 @@ class NovaSentinelWindow(ctk.CTk):
             self.scan_var.set(state["last_scan_summary"])
             self.quick_summary_var.set(self.t("scan.counter", threats=state["threats_found"], files=state["files_scanned"]))
             self._refresh_scan_controls(state)
-            if self.progress_bar:
-                self.progress_bar.set(float(state["scan_progress"]))
             self._refresh_scan_threats(snapshot.get("current_scan_threats", []))
             if self.result_tree:
                 self._refresh_tree(
@@ -1069,7 +1111,7 @@ class NovaSentinelWindow(ctk.CTk):
                     customer=state.customer or unknown,
                     expiry=state.expires_at or never,
                 )
-                status_color = "#8fe6a8"
+                status_color = BLUE["success"]
             else:
                 status = self.t("premium.status_inactive", status=inactive_status)
                 status_color = "#f4b183"
@@ -1181,9 +1223,41 @@ class NovaSentinelWindow(ctk.CTk):
         if stopping:
             self.scan_status_var.set(self.t("scan.stopping_status"))
         elif in_progress:
-            self.scan_status_var.set(str(state.get("scan_label", "Scanning...")))
+            total = int(state.get("scan_total_files") or 0)
+            scanned = int(state.get("files_scanned") or 0)
+            label = str(state.get("scan_label", "Scanning"))
+            dots = "." * ((self.scan_animation_tick % 3) + 1)
+            self.scan_animation_tick += 1
+            if total > 0:
+                self.scan_status_var.set(f"{label} - {scanned}/{total} {self.t('scan.files_suffix')}{dots}")
+            else:
+                self.scan_status_var.set(f"{label} - {scanned} {self.t('scan.files_suffix')} {self.t('scan.discovering')}{dots}")
         else:
+            self.scan_animation_tick = 0
             self.scan_status_var.set(self.t("scan.ready"))
+        self._refresh_progress_bar(state, in_progress)
+
+    def _refresh_progress_bar(self, state: dict, in_progress: bool) -> None:
+        if not self.progress_bar:
+            return
+        total = int(state.get("scan_total_files") or 0)
+        if in_progress and total <= 0:
+            if not self.scan_progress_indeterminate:
+                try:
+                    self.progress_bar.configure(mode="indeterminate", indeterminate_speed=1.25)
+                    self.progress_bar.start()
+                except Exception:
+                    pass
+                self.scan_progress_indeterminate = True
+            return
+        if self.scan_progress_indeterminate:
+            try:
+                self.progress_bar.stop()
+                self.progress_bar.configure(mode="determinate")
+            except Exception:
+                pass
+            self.scan_progress_indeterminate = False
+        self.progress_bar.set(float(state.get("scan_progress", 0.0) or 0.0))
 
     def _refresh_tree(
         self,

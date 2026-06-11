@@ -17,6 +17,7 @@ class TrayController:
         on_quick_scan: Callable[[], None],
         on_toggle_realtime: Callable[[], None],
         on_panic_mode: Callable[[], None],
+        on_release_panic_mode: Callable[[], None],
         on_exit: Callable[[], None],
         language: str = "en",
     ) -> None:
@@ -24,6 +25,7 @@ class TrayController:
         self.on_quick_scan = on_quick_scan
         self.on_toggle_realtime = on_toggle_realtime
         self.on_panic_mode = on_panic_mode
+        self.on_release_panic_mode = on_release_panic_mode
         self.on_exit = on_exit
         self.language = normalize_language(language)
         self.last_tray_activation = 0.0
@@ -76,8 +78,10 @@ class TrayController:
             ),
             pystray.MenuItem(tr(self.language, "tray.open"), self._safe(lambda: self.on_open())),
             pystray.MenuItem(tr(self.language, "scan.quick"), self._safe(lambda: self.on_quick_scan())),
-            pystray.MenuItem(tr(self.language, "tray.toggle"), self._safe(lambda: self.on_toggle_realtime())),
             pystray.MenuItem(tr(self.language, "ransomware.panic"), self._safe(lambda: self.on_panic_mode())),
+            pystray.MenuItem(tr(self.language, "ransomware.release_panic"), self._safe(lambda: self.on_release_panic_mode())),
+            pystray.MenuItem(tr(self.language, "tray.toggle"), self._safe(lambda: self.on_toggle_realtime())),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(tr(self.language, "tray.exit"), self._safe(self._exit)),
         )
 
