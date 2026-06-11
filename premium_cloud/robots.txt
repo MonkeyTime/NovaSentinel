@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /login/
+Disallow: /dashboard/
+
+Sitemap: https://novasentinel.eu/sitemap.xml

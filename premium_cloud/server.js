@@ -49,6 +49,9 @@ const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
   ".png": "image/png",
   ".ico": "image/x-icon",
   ".svg": "image/svg+xml",
@@ -1556,6 +1559,16 @@ function serveDownloadFile(res, fileName) {
   serveFile(res, path.join(downloadDir, safeName));
 }
 
+function serveAssetFile(res, fileName) {
+  const safeName = path.basename(fileName);
+  if (!safeName || safeName !== fileName || !/^[a-z0-9._-]+$/i.test(safeName)) {
+    res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+    return;
+  }
+  serveFile(res, path.join(rootDir, "assets", safeName));
+}
+
 function serveStatic(req, res, url) {
   if (url.pathname.startsWith("/dashboard/")) {
     const user = currentUser(req);
@@ -1577,7 +1590,28 @@ function serveStatic(req, res, url) {
     return;
   }
   if (url.pathname === "/favicon.ico") {
-    serveFile(res, path.join(rootDir, "assets", "novasentinel_icon.ico"));
+    serveFile(res, path.join(rootDir, "assets", "favicon.ico"));
+    return;
+  }
+  if (url.pathname === "/robots.txt") {
+    serveFile(res, path.join(rootDir, "robots.txt"));
+    return;
+  }
+  if (url.pathname === "/sitemap.xml") {
+    serveFile(res, path.join(rootDir, "sitemap.xml"));
+    return;
+  }
+  if (url.pathname === "/site.webmanifest") {
+    serveFile(res, path.join(rootDir, "site.webmanifest"));
+    return;
+  }
+  if (url.pathname.startsWith("/assets/")) {
+    try {
+      serveAssetFile(res, decodeURIComponent(url.pathname.replace("/assets/", "")));
+    } catch {
+      res.writeHead(400, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Bad request");
+    }
     return;
   }
   if (url.pathname === "/downloads/NovaSentinelSetup.exe") {
