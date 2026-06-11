@@ -24,14 +24,13 @@
       <section class="auth-panel" aria-labelledby="login-title">
         <p class="eyebrow">Compte NovaSentinel</p>
         <h1 id="login-title">Accès Premium</h1>
-        <p>Connectez-vous, activez une licence achetée, ou créez le premier superadmin d'une installation locale.</p>
+        <p>Connectez-vous ou activez une licence achetée.</p>
 
         <div id="loginState" class="inline-state">Vérification de la session...</div>
 
         <div class="auth-tabs" aria-label="Parcours d'accès">
           <button class="active" type="button" data-auth-mode="login">Connexion</button>
           <button type="button" data-auth-mode="claim">Activer une licence</button>
-          <button type="button" data-auth-mode="setup">Bootstrap superadmin</button>
         </div>
 
         <section class="auth-mode-panel active" data-auth-panel="login" aria-label="Connexion">
@@ -66,25 +65,12 @@
           </form>
         </section>
 
-        <section class="auth-mode-panel" data-auth-panel="setup" aria-label="Bootstrap superadmin">
-          <form id="setupSuperadminForm" class="auth-form">
-            <div class="form-intro">
-              <strong>Créer le premier superadmin</strong>
-              <span>Disponible seulement si aucun superadmin n'existe et si le token serveur est configuré.</span>
-            </div>
-            <label>Email superadmin<input name="email" type="email" autocomplete="email" required /></label>
-            <label>Token bootstrap<input name="bootstrap_token" type="password" autocomplete="one-time-code" required /></label>
-            <label>Mot de passe fort<input name="password" type="password" autocomplete="new-password" minlength="14" required /></label>
-            <button class="button primary" type="submit">Créer le superadmin</button>
-            <div id="setupState" class="secret-state">Le QR code 2FA sera affiché une seule fois après création.</div>
-          </form>
-        </section>
       </section>
 
       <aside class="auth-side">
         <h2>Flux conseillé</h2>
         <ol class="step-list">
-          <li>Bootstrap superadmin local si le serveur est neuf.</li>
+          <li>Créer le superadmin depuis SQLite en SSH.</li>
           <li>Émettre une licence depuis le dashboard superadmin ou passer par Stripe.</li>
           <li>Activer la licence pour créer le compte client.</li>
           <li>Se connecter avec email, mot de passe et TOTP.</li>

@@ -26,7 +26,6 @@
         <button class="superadmin-tab active" type="button" data-panel="overview">Vue globale</button>
         <button class="superadmin-tab" type="button" data-panel="licenses">Licences</button>
         <button class="superadmin-tab" type="button" data-panel="ops">Ops</button>
-        <button class="superadmin-tab" type="button" data-panel="bootstrap">Bootstrap</button>
         <button class="superadmin-tab" type="button" data-panel="security">Sécurité</button>
       </aside>
 
@@ -103,20 +102,6 @@
             <div class="admin-action-grid">
               <button id="createBackup" type="button">Créer une sauvegarde SQLite</button>
             </div>
-          </div>
-        </div>
-
-        <div class="superadmin-panel" data-panel="bootstrap">
-          <div class="panel-card">
-            <h2>Bootstrap du premier superadmin</h2>
-            <p>Disponible uniquement si la base ne contient aucun superadmin et si `SUPERADMIN_BOOTSTRAP_TOKEN_HASH` est défini côté serveur.</p>
-            <form id="setupSuperadminForm" class="auth-form compact-form">
-              <label>Email superadmin<input name="email" type="email" autocomplete="email" required /></label>
-              <label>Token bootstrap<input name="bootstrap_token" type="password" autocomplete="one-time-code" required /></label>
-              <label>Mot de passe fort<input name="password" type="password" autocomplete="new-password" minlength="14" required /></label>
-              <button class="button primary" type="submit">Créer le superadmin</button>
-            </form>
-            <div id="setupState" class="secret-state">Le secret TOTP est retourné une seule fois après création.</div>
           </div>
         </div>
 

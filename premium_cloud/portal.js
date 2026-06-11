@@ -39,7 +39,7 @@ qsa("[data-auth-mode]").forEach((button) => {
 
 async function api(path, options = {}) {
   const method = String(options.method || "GET").toUpperCase();
-  if (method !== "GET" && !csrfToken && path !== "/api/login" && path !== "/api/login/verify" && path !== "/api/organizations/claim" && path !== "/api/setup/superadmin" && path !== "/api/checkout/sessions") {
+  if (method !== "GET" && !csrfToken && path !== "/api/login" && path !== "/api/login/verify" && path !== "/api/organizations/claim" && path !== "/api/checkout/sessions") {
     await loadCsrfToken();
   }
   const response = await fetch(path, {
@@ -132,8 +132,6 @@ function humanError(error) {
     weak_password: "Le mot de passe doit contenir au moins 14 caractères.",
     password_policy: "Le mot de passe doit contenir au moins 14 caractères, une minuscule, une majuscule, un chiffre et un symbole.",
     organization_already_claimed: "Cette organisation a déjà un compte client.",
-    invalid_bootstrap_token: "Token bootstrap incorrect.",
-    bootstrap_unavailable: "Le bootstrap est désactivé car un superadmin existe déjà ou le token serveur manque.",
     invalid_checkout_payload: "Organisation, email et nombre de postes sont requis.",
     invalid_license_issue_payload: "Organisation, email et nombre de postes sont requis.",
     license_inactive_or_unknown: "Licence inactive ou inconnue.",
@@ -295,12 +293,9 @@ async function hydrateSessionBanner() {
   if (!qs("[data-auth-page]")) return;
   try {
     const session = await api("/api/session");
-    qs("[data-auth-mode='setup']")?.toggleAttribute("hidden", !session.bootstrap_available);
     if (session.authenticated) {
       const target = session.user?.role === "superadmin" ? "/dashboard/superadmin/" : "/dashboard/user/";
       statusBox("#loginState", `Déjà connecté en tant que ${session.user.email}.`, "success", { href: target, label: "Ouvrir le dashboard" });
-    } else if (session.bootstrap_available) {
-      statusBox("#loginState", "Aucun superadmin n'existe encore. Créez d'abord le compte fondateur via l'onglet Bootstrap.", "info");
     } else {
       statusBox("#loginState", "Connectez-vous ou revendiquez une licence Premium active.", "info");
     }
@@ -387,29 +382,6 @@ qs("#claimForm")?.addEventListener("submit", async (event) => {
     form.reset();
   } catch (error) {
     statusBox("#claimState", humanError(error), "error");
-  } finally {
-    setBusy(form, false);
-  }
-});
-
-qs("#setupSuperadminForm")?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const data = new FormData(form);
-  setBusy(form, true, "Création...");
-  try {
-    const result = await api("/api/setup/superadmin", {
-      method: "POST",
-      body: {
-        email: data.get("email"),
-        password: data.get("password"),
-        bootstrap_token: data.get("bootstrap_token"),
-      },
-    });
-    renderSecret("#setupState", "Superadmin créé. Configurez maintenant le 2FA.", result.mfa_secret, result.otpauth, result.mfa_qr_data_url);
-    form.reset();
-  } catch (error) {
-    statusBox("#setupState", humanError(error), "error");
   } finally {
     setBusy(form, false);
   }
@@ -801,3 +773,4 @@ hydrateSessionBanner();
 renderSubscriptionSummary();
 loadUserDashboard();
 loadSuperadminDashboard();
+

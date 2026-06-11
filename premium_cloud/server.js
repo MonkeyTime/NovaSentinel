@@ -10,6 +10,7 @@ const rootDir = __dirname;
 const repoDir = path.resolve(rootDir, "..");
 const dataDir = path.join(rootDir, "data");
 const releaseUploadDir = path.join(dataDir, "release_uploads");
+const downloadDir = path.join(dataDir, "downloads");
 const backupDir = path.join(dataDir, "backups");
 const dbPath = process.env.NOVASENTINEL_PREMIUM_DB || path.join(dataDir, "premium_cloud.sqlite3");
 const host = process.env.HOST || "127.0.0.1";
@@ -26,7 +27,6 @@ const publicOrigin = new URL(publicBaseUrl);
 const isSecureDeployment = publicOrigin.protocol === "https:" || process.env.NODE_ENV === "production";
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
-const bootstrapTokenHash = process.env.SUPERADMIN_BOOTSTRAP_TOKEN_HASH || "";
 const premiumSigningPrivateKeyPem = process.env.PREMIUM_ED25519_PRIVATE_KEY_PEM || "";
 const githubToken = process.env.GITHUB_TOKEN || "";
 const premiumFeatures = [
@@ -38,6 +38,7 @@ const premiumFeatures = [
 
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(releaseUploadDir, { recursive: true });
+fs.mkdirSync(downloadDir, { recursive: true });
 fs.mkdirSync(backupDir, { recursive: true });
 const db = new DatabaseSync(dbPath);
 db.exec("PRAGMA foreign_keys = ON");
@@ -52,11 +53,11 @@ const mimeTypes = {
   ".ico": "image/x-icon",
   ".svg": "image/svg+xml",
   ".exe": "application/vnd.microsoft.portable-executable",
+  ".zip": "application/zip",
 };
 
 const ratePolicies = {
   login: { limit: 12, windowSeconds: 10 * 60 },
-  bootstrap: { limit: 5, windowSeconds: 15 * 60 },
   claim: { limit: 10, windowSeconds: 15 * 60 },
   checkout: { limit: 12, windowSeconds: 10 * 60 },
   premiumVerify: { limit: 60, windowSeconds: 10 * 60 },
@@ -67,7 +68,6 @@ const ratePolicies = {
 const lockPolicies = {
   login: { failures: 5, lockSeconds: 15 * 60 },
   mfa: { failures: 6, lockSeconds: 15 * 60 },
-  bootstrap: { failures: 4, lockSeconds: 30 * 60 },
   claim: { failures: 8, lockSeconds: 20 * 60 },
   checkout: { failures: 8, lockSeconds: 20 * 60 },
   premiumVerify: { failures: 12, lockSeconds: 20 * 60 },
@@ -324,10 +324,6 @@ function verifyTotp(secret, code) {
   const clean = String(code || "").replace(/\D/g, "");
   if (clean.length !== 6) return false;
   return [-1, 0, 1].some((drift) => crypto.timingSafeEqual(Buffer.from(clean), Buffer.from(totpCode(secret, Date.now() + drift * 30000))));
-}
-
-function hashToken(token) {
-  return crypto.createHash("sha256").update(String(token)).digest("hex");
 }
 
 function normalizeIp(value) {
@@ -621,22 +617,6 @@ function requireRole(req, role) {
     throw error;
   }
   return user;
-}
-
-function bootstrapAvailable() {
-  const count = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'superadmin'").get().count;
-  const bootstrapConsumed = Boolean(
-    db
-      .prepare("SELECT 1 FROM security_counters WHERE key = 'bootstrap_token_consumed' AND locked_until > 0")
-      .get(),
-  );
-  return count === 0 && Boolean(bootstrapTokenHash) && !bootstrapConsumed;
-}
-
-function markBootstrapConsumed() {
-  db.prepare(
-    "INSERT INTO security_counters(key, count, window_start, locked_until, updated_at) VALUES ('bootstrap_token_consumed', 1, ?, 1, ?) ON CONFLICT(key) DO UPDATE SET count = 1, window_start = excluded.window_start, locked_until = excluded.locked_until, updated_at = excluded.updated_at",
-  ).run(nowEpoch(), nowIso());
 }
 
 async function createStripeCheckoutSession(localSession) {
@@ -1106,13 +1086,12 @@ async function handleApi(req, res, url) {
       database: dbPath,
       stripe_configured: Boolean(stripeSecretKey),
       premium_signing_configured: Boolean(premiumSigningPrivateKeyPem),
-      bootstrap_available: bootstrapAvailable(),
     });
   }
 
   if (req.method === "GET" && url.pathname === "/api/session") {
     const session = currentSession(req);
-    return json(res, 200, { authenticated: Boolean(session), user: publicUser(session), csrf_token: session?.csrf_token || "", bootstrap_available: bootstrapAvailable() });
+    return json(res, 200, { authenticated: Boolean(session), user: publicUser(session), csrf_token: session?.csrf_token || "" });
   }
 
   if ((req.method === "GET" || req.method === "POST") && ["/api/releases/latest", "/api/premium/releases/latest"].includes(url.pathname)) {
@@ -1120,30 +1099,6 @@ async function handleApi(req, res, url) {
     const channel = String(url.searchParams.get("channel") || payload.channel || "stable").slice(0, 20);
     const currentVersion = String(url.searchParams.get("current_version") || payload.current_version || payload.app_version || "");
     return json(res, 200, latestReleasePayload(channel, currentVersion));
-  }
-
-  if (req.method === "POST" && url.pathname === "/api/setup/superadmin") {
-    rateLimit(req, "bootstrap");
-    if (!bootstrapAvailable()) return json(res, 403, { error: "bootstrap_unavailable" });
-    const payload = await readJson(req);
-    const token = String(payload.bootstrap_token || "");
-    requireNotLocked("bootstrap", [clientIp(req)]);
-    if (!safeEquals(hashToken(token), bootstrapTokenHash)) {
-      recordFailure("bootstrap", [clientIp(req)]);
-      return json(res, 403, { error: "invalid_bootstrap_token" });
-    }
-    const email = String(payload.email || "").trim().toLowerCase();
-    const password = String(payload.password || "");
-    const passwordError = passwordPolicyError(password);
-    if (!email.includes("@") || passwordError) return json(res, 400, { error: passwordError || "invalid_superadmin_payload" });
-    const mfaSecret = base32Secret();
-    const result = db
-      .prepare("INSERT INTO users(organization_id, email, password_hash, role, mfa_secret, created_at) VALUES (NULL, ?, ?, 'superadmin', ?, ?)")
-      .run(email, hashPassword(password), mfaSecret, nowIso());
-    markBootstrapConsumed();
-    audit(Number(result.lastInsertRowid), "superadmin_bootstrapped", "user", result.lastInsertRowid, {});
-    clearFailures("bootstrap", [clientIp(req)]);
-    return json(res, 201, { ok: true, email, ...(await totpEnrollment(email, mfaSecret)) });
   }
 
   if (req.method === "POST" && url.pathname === "/api/login") {
@@ -1450,7 +1405,6 @@ async function handleApi(req, res, url) {
       licenses,
       audit_events: auditEvents,
       releases,
-      bootstrap_available: bootstrapAvailable(),
     });
   }
 
@@ -1578,6 +1532,31 @@ function readAudit(row) {
   return { ...row, details: JSON.parse(row.details || "{}") };
 }
 
+function latestReleaseArtifact(pattern) {
+  const candidates = [downloadDir, path.join(repoDir, "release")];
+  const files = candidates.flatMap((candidateDir) => {
+    if (!fs.existsSync(candidateDir)) return [];
+    return fs.readdirSync(candidateDir)
+      .filter((name) => pattern.test(name))
+      .map((name) => {
+        const resolved = path.join(candidateDir, name);
+        return { resolved, mtimeMs: fs.statSync(resolved).mtimeMs };
+      });
+  });
+  files.sort((left, right) => right.mtimeMs - left.mtimeMs);
+  return files[0]?.resolved || "";
+}
+
+function serveDownloadFile(res, fileName) {
+  const safeName = path.basename(fileName);
+  if (!safeName || safeName !== fileName) {
+    res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+    return;
+  }
+  serveFile(res, path.join(downloadDir, safeName));
+}
+
 function serveStatic(req, res, url) {
   if (url.pathname.startsWith("/dashboard/")) {
     const user = currentUser(req);
@@ -1603,7 +1582,23 @@ function serveStatic(req, res, url) {
     return;
   }
   if (url.pathname === "/downloads/NovaSentinelSetup.exe") {
-    serveFile(res, path.join(repoDir, "release", "NovaSentinelSetup.exe"));
+    serveFile(res, latestReleaseArtifact(/^(NovaSentinelSetup\.exe|NovaSentinel-Setup-.+\.exe)$/i));
+    return;
+  }
+  if (url.pathname === "/downloads/NovaSentinelAdminConsole.zip") {
+    serveFile(res, latestReleaseArtifact(/^(NovaSentinelAdminConsole\.zip|novasentinel-admin-console-.+\.zip)$/i));
+    return;
+  }
+  if (url.pathname.startsWith("/downloads/")) {
+    let fileName = "";
+    try {
+      fileName = path.basename(decodeURIComponent(url.pathname.replace("/downloads/", "")));
+    } catch {
+      res.writeHead(400, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Bad request");
+      return;
+    }
+    serveDownloadFile(res, fileName);
     return;
   }
   if (url.pathname.startsWith("/release-downloads/")) {
@@ -1682,6 +1677,11 @@ function serveFile(res, resolved) {
 }
 
 initDb();
+if (process.env.NOVASENTINEL_INIT_DB_ONLY === "1") {
+  console.log(`SQLite database initialized: ${dbPath}`);
+  db.close();
+  process.exit(0);
+}
 cleanupSecurityCounters();
 cleanupLoginChallenges();
 cleanupExpiredSessions();

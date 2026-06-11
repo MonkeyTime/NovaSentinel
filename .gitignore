@@ -10,6 +10,8 @@ __pycache__/
 .venv/
 venv/
 env/
+node_modules/
+premium_cloud/node_modules/
 
 # Generated builds and installers
 build/
@@ -23,6 +25,7 @@ release/
 pytest_*_base/
 pytest_*_temp/
 smoke_scan/
+premium_cloud/data/
 
 # NovaSentinel runtime state if copied locally
 NovaSentinel/

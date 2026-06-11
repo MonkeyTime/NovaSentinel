@@ -30,7 +30,6 @@ Required production environment:
 - `STRIPE_SECRET_KEY`: creates real Stripe Checkout Sessions.
 - `STRIPE_WEBHOOK_SECRET`: verifies Stripe webhook signatures.
 - `PUBLIC_BASE_URL`: public origin used in Stripe success/cancel URLs.
-- `SUPERADMIN_BOOTSTRAP_TOKEN_HASH`: SHA-256 hash of the one-time bootstrap token for the first superadmin.
 - `PREMIUM_ED25519_PRIVATE_KEY_PEM`: Ed25519 private key used to sign desktop entitlements.
 - `GITHUB_TOKEN`: optional token used to inspect GitHub Releases assets and private release metadata.
 - `NOVASENTINEL_BACKUP_INTERVAL_HOURS`: SQLite backup interval, default `24`.
@@ -43,21 +42,12 @@ The IT Admin Console itself is a separate downloadable app for fleet managers. I
 
 The hosted service also needs a NovaSentinel-only Superadmin dashboard. It is not part of the customer IT portal and must be deployed behind a separate internal authentication boundary.
 
-The first account can become `superadmin` only during a secure bootstrap flow:
-
-1. Backend starts with no admin account in the database.
-2. Deployment provides a one-time secret through `SUPERADMIN_BOOTSTRAP_TOKEN_HASH`.
-3. `/api/setup/superadmin` is available only while no admin exists and only when the deployment token hash exists.
-4. The submitted bootstrap token is hashed and compared server-side.
-5. The password is hashed with a slow password hasher and MFA enrollment is required.
-6. The account is created as `superadmin`, an append-only audit event is written, and bootstrap mode is permanently disabled.
-
-The frontend can display the setup and dashboard states, but it never decides that a user is superadmin on its own. `/api/dashboard/superadmin` and sensitive actions check the server-side role.
+Superadmin accounts are provisioned directly by the server operator in SQLite during deployment. The public frontend never creates a superadmin account. `/api/dashboard/superadmin` and sensitive actions check the server-side role.
 
 Security controls enabled by default:
 
-- rate limiting on login, bootstrap, organization claim, and Premium activation;
-- temporary lockout after repeated password, MFA, bootstrap, claim, or activation failures;
+- rate limiting on login, organization claim, and Premium activation;
+- temporary lockout after repeated password, MFA, claim, or activation failures;
 - CSRF token required for every superadmin mutation;
 - `Secure` session cookies automatically when `PUBLIC_BASE_URL` is HTTPS or `NODE_ENV=production`;
 - HTTP security headers including CSP, frame blocking, nosniff, referrer policy, and HSTS in production;
@@ -79,6 +69,7 @@ Defaults used by the deploy script:
 - user/group: `novasentinel`
 - public bind: `0.0.0.0:8780`
 - sqlite path: `/var/lib/novasentinel-premium-cloud/premium_cloud.sqlite3`
+- downloads dir: `/var/lib/novasentinel-premium-cloud/downloads`
 
 You can override with environment variables:
 
@@ -100,6 +91,16 @@ systemctl restart novasentinel-premium-cloud
 systemctl stop novasentinel-premium-cloud
 ```
 
+The deploy script initializes or migrates the SQLite schema before starting systemd. Existing data in `/var/lib/novasentinel-premium-cloud` is preserved. If release assets are available in the repository `release/` directory, the latest `NovaSentinel-Setup-*.exe` and `novasentinel-admin-console-*.zip` are copied to:
+
+- `/var/lib/novasentinel-premium-cloud/downloads/NovaSentinelSetup.exe`
+- `/var/lib/novasentinel-premium-cloud/downloads/NovaSentinelAdminConsole.zip`
+
+The public website serves those files through:
+
+- `/downloads/NovaSentinelSetup.exe`
+- `/downloads/NovaSentinelAdminConsole.zip`
+
 ## Production payment flow
 
 1. Buyer selects the number of Premium seats on this site.
@@ -114,7 +115,6 @@ The private signing key and Stripe secret key must never be shipped in frontend 
 ## API surface
 
 - `GET /api/health`: service/database status.
-- `POST /api/setup/superadmin`: first superadmin creation, guarded by `SUPERADMIN_BOOTSTRAP_TOKEN_HASH`.
 - `POST /api/login` then `POST /api/login/verify`: password plus TOTP, creates an HTTP-only session.
 - `POST /api/checkout/sessions`: creates a real Stripe Checkout Session.
 - `POST /api/stripe/webhook`: confirms payment and creates organization/license.
