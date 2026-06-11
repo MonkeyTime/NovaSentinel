@@ -146,6 +146,16 @@ if [[ ! -f "$PROJECT_DIR/server.js" ]]; then
   exit 1
 fi
 
+PROJECT_REAL="$(realpath "$PROJECT_DIR")"
+APP_REAL="$(realpath -m "$APP_DIR")"
+case "$PROJECT_REAL/" in
+  "$APP_REAL"/*)
+    echo "Refusing unsafe deployment: APP_DIR ($APP_DIR) contains the source checkout ($PROJECT_DIR)."
+    echo "Set NOVASENTINEL_CLOUD_APP_DIR to a separate runtime directory, for example /opt/$APP_NAME-runtime."
+    exit 1
+    ;;
+esac
+
 if ! getent group "$APP_GROUP" >/dev/null 2>&1; then
   groupadd --system "$APP_GROUP"
 fi
