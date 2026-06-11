@@ -626,14 +626,13 @@ async function createStripeCheckoutSession(localSession) {
     throw error;
   }
   const params = new URLSearchParams();
-  params.set("mode", "subscription");
+  params.set("mode", "payment");
   params.set("success_url", `${publicBaseUrl}/subscribe/?checkout=${encodeURIComponent(localSession.id)}&status=success`);
   params.set("cancel_url", `${publicBaseUrl}/subscribe/?checkout=${encodeURIComponent(localSession.id)}&status=cancel`);
   params.set("client_reference_id", localSession.id);
   params.set("customer_email", localSession.billing_email);
   params.set("line_items[0][quantity]", String(localSession.seats));
   params.set("line_items[0][price_data][currency]", "eur");
-  params.set("line_items[0][price_data][recurring][interval]", "month");
   params.set("line_items[0][price_data][product_data][name]", "NovaSentinel Premium");
   params.set("line_items[0][price_data][unit_amount]", String(premiumSeatPriceEur * 100));
   params.set("metadata[local_session_id]", localSession.id);
