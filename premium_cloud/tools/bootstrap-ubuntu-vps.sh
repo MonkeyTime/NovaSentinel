@@ -56,7 +56,7 @@ prepare_source() {
 }
 
 deploy_app() {
-  log "Deploying Premium Cloud runtime."
+  log "Deploying Enterprise Cloud runtime."
   NOVASENTINEL_CLOUD_APP_NAME="$APP_NAME" \
   NOVASENTINEL_CLOUD_APP_DIR="$RUNTIME_DIR" \
   NOVASENTINEL_CLOUD_APP_USER="$APP_USER" \

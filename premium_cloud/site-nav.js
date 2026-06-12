@@ -4,7 +4,7 @@ const navLabels = {
   fr: {
     home: "Accueil",
     download: "Télécharger",
-    premium: "Premium",
+    premium: "Entreprise",
     security: "Sécurité",
     subscribe: "Acheter",
     dashboard: "Dashboard",
@@ -15,7 +15,7 @@ const navLabels = {
   en: {
     home: "Home",
     download: "Download",
-    premium: "Premium",
+    premium: "Enterprise",
     security: "Security",
     subscribe: "Buy",
     dashboard: "Dashboard",
@@ -26,7 +26,7 @@ const navLabels = {
   es: {
     home: "Inicio",
     download: "Descargar",
-    premium: "Premium",
+    premium: "Empresa",
     security: "Seguridad",
     subscribe: "Comprar",
     dashboard: "Dashboard",
@@ -37,7 +37,7 @@ const navLabels = {
   de: {
     home: "Start",
     download: "Download",
-    premium: "Premium",
+    premium: "Enterprise",
     security: "Sicherheit",
     subscribe: "Kaufen",
     dashboard: "Dashboard",
@@ -48,7 +48,7 @@ const navLabels = {
   it: {
     home: "Home",
     download: "Download",
-    premium: "Premium",
+    premium: "Enterprise",
     security: "Sicurezza",
     subscribe: "Acquista",
     dashboard: "Dashboard",
@@ -59,7 +59,7 @@ const navLabels = {
   pt: {
     home: "Início",
     download: "Transferir",
-    premium: "Premium",
+    premium: "Empresa",
     security: "Segurança",
     subscribe: "Comprar",
     dashboard: "Dashboard",
@@ -70,7 +70,7 @@ const navLabels = {
   ar: {
     home: "الرئيسية",
     download: "تنزيل",
-    premium: "Premium",
+    premium: "Enterprise",
     security: "الأمان",
     subscribe: "شراء",
     dashboard: "Dashboard",

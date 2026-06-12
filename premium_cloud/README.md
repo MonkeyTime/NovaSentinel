@@ -1,15 +1,15 @@
-# NovaSentinel Premium website
+# NovaSentinel Entreprise website
 
 This folder is the hosted NovaSentinel web property and Node backend:
 
 - marketing home page
 - `/login` authentication and 2FA entry point
-- `/subscribe` Premium subscription/Stripe checkout entry point
+- `/subscribe` Entreprise subscription/Stripe checkout entry point
 - `/dashboard/user` customer/IT dashboard
 - `/dashboard/superadmin` NovaSentinel-only internal dashboard
 - `/api/*` JSON API backed by SQLite
 - NovaSentinel download hero
-- Premium seat-count selection
+- Entreprise seat-count selection
 - Stripe checkout integration target
 - hosted license/API explanation
 - Admin Console download/integration preparation
@@ -46,7 +46,7 @@ Superadmin accounts are provisioned directly by the server operator in SQLite du
 
 Security controls enabled by default:
 
-- rate limiting on login, organization claim, and Premium activation;
+- rate limiting on login, organization claim, and Entreprise activation;
 - temporary lockout after repeated password, MFA, claim, or activation failures;
 - CSRF token required for every superadmin mutation;
 - `Secure` session cookies automatically when `PUBLIC_BASE_URL` is HTTPS or `NODE_ENV=production`;
@@ -103,7 +103,7 @@ The public website serves those files through:
 
 ## Production payment flow
 
-1. Buyer selects the number of Premium seats on this site.
+1. Buyer selects the number of Entreprise seats on this site.
 2. Frontend calls `POST /api/checkout/sessions`, which creates a real Stripe Checkout Session.
 3. Stripe handles payment.
 4. Backend listens on `POST /api/stripe/webhook` and verifies the Stripe signature.
@@ -122,7 +122,7 @@ The private signing key and Stripe secret key must never be shipped in frontend 
 - `POST /api/premium/verify`: desktop app verifies a license key, consumes/updates one seat, and receives a signed entitlement.
 - `GET /api/dashboard/user`: customer organization metrics, licenses, activations, deployment payload.
 - `GET /api/dashboard/superadmin`: internal metrics, licenses, releases, audit log.
-- `POST /api/superadmin/licenses/issue`: manually issues a Premium license as an audited superadmin action, useful for local testing, offline sales, or support.
+- `POST /api/superadmin/licenses/issue`: manually issues a Entreprise license as an audited superadmin action, useful for local testing, offline sales, or support.
 - `POST /api/superadmin/licenses/:id/revoke`: revokes a license and writes audit.
 - `POST /api/superadmin/licenses/:id/resign`: increments entitlement version and writes audit.
 - `POST /api/superadmin/releases/inspect-github-url`: inspects a GitHub Release asset URL, reads release metadata, downloads the asset server-side, and returns version, notes, URL, size, and SHA-256.

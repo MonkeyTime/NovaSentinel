@@ -127,7 +127,7 @@ function humanError(error) {
     invalid_credentials: "Email ou mot de passe incorrect.",
     invalid_mfa: "Code 2FA incorrect. Vérifiez votre application TOTP.",
     challenge_expired: "La vérification 2FA a expiré. Recommencez la connexion.",
-    license_not_found: "Clé Premium introuvable ou inactive.",
+    license_not_found: "Clé Entreprise introuvable ou inactive.",
     billing_email_required: "L'email doit être l'email de facturation de la licence.",
     weak_password: "Le mot de passe doit contenir au moins 14 caractères.",
     password_policy: "Le mot de passe doit contenir au moins 14 caractères, une minuscule, une majuscule, un chiffre et un symbole.",
@@ -150,7 +150,7 @@ function humanError(error) {
   };
   if (map[code]) return map[code];
   if (message.includes(["STRIPE", "SECRET", "KEY"].join("_"))) return "Le paiement sécurisé n'est pas encore disponible.";
-  if (message.includes("PREMIUM_ED25519_PRIVATE_KEY_PEM")) return "L'activation Premium n'est pas encore disponible sur ce serveur.";
+  if (message.includes("PREMIUM_ED25519_PRIVATE_KEY_PEM")) return "L'activation Entreprise n'est pas encore disponible sur ce serveur.";
   if (error.status === 401) return "Session requise. Connectez-vous pour accéder à cette page.";
   if (error.status === 403) return "Action refusée pour ce rôle.";
   return message || "Une erreur inattendue est survenue.";
@@ -297,7 +297,7 @@ async function hydrateSessionBanner() {
       const target = session.user?.role === "superadmin" ? "/dashboard/superadmin/" : "/dashboard/user/";
       statusBox("#loginState", `Déjà connecté en tant que ${session.user.email}.`, "success", { href: target, label: "Ouvrir le dashboard" });
     } else {
-      statusBox("#loginState", "Connectez-vous ou revendiquez une licence Premium active.", "info");
+      statusBox("#loginState", "Connectez-vous ou revendiquez une licence Entreprise active.", "info");
     }
   } catch (error) {
     statusBox("#loginState", humanError(error), "error");
@@ -500,7 +500,7 @@ function renderDeployment(deployment) {
     return;
   }
   pre.textContent = [
-    "Déploiement NovaSentinel Premium",
+    "Déploiement NovaSentinel Entreprise",
     "",
     `Clé organisation: ${deployment.premium_deployment_json?.license_key || "non disponible"}`,
     `Canal de mise à jour: ${deployment.premium_deployment_json?.channel || "stable"}`,
@@ -642,7 +642,7 @@ qs("#issueLicenseForm")?.addEventListener("submit", async (event) => {
         seats: data.get("seats"),
       },
     });
-    renderSecret("#issueLicenseState", "Licence Premium créée. Utilisez cette clé pour activer le compte client.", result.license.license_key);
+    renderSecret("#issueLicenseState", "Licence Entreprise créée. Utilisez cette clé pour activer le compte client.", result.license.license_key);
     if (await copySilently(result.license.license_key)) {
       const copied = document.createElement("small");
       copied.className = "copy-feedback";

@@ -646,7 +646,7 @@ async function createStripeCheckoutSession(localSession) {
   params.set("customer_email", localSession.billing_email);
   params.set("line_items[0][quantity]", String(localSession.seats));
   params.set("line_items[0][price_data][currency]", "eur");
-  params.set("line_items[0][price_data][product_data][name]", "NovaSentinel Premium");
+  params.set("line_items[0][price_data][product_data][name]", "NovaSentinel Entreprise");
   params.set("line_items[0][price_data][unit_amount]", String(premiumSeatPriceEur * 100));
   params.set("metadata[local_session_id]", localSession.id);
   params.set("metadata[organization_name]", localSession.organization_name);
@@ -1895,6 +1895,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`NovaSentinel Premium Cloud listening on ${publicBaseUrl}`);
+  console.log(`NovaSentinel Enterprise Cloud listening on ${publicBaseUrl}`);
   console.log(`SQLite database: ${dbPath}`);
 });

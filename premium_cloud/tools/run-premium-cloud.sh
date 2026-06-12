@@ -53,6 +53,6 @@ if [[ -z "${PORT:-}" ]]; then
   export PORT=8780
 fi
 
-echo "NovaSentinel Premium Cloud starting on http://${HOST}:${PORT}"
+echo "NovaSentinel Enterprise Cloud starting on http://${HOST}:${PORT}"
 echo "Node: $NODE_BIN"
 exec "$NODE_BIN" server.js

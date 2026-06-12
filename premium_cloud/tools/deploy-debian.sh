@@ -270,7 +270,7 @@ chmod -R 0750 "$DOWNLOAD_DIR"
 
 cat > /etc/systemd/system/$APP_NAME.service <<EOF
 [Unit]
-Description=NovaSentinel Premium Cloud
+Description=NovaSentinel Enterprise Cloud
 After=network-online.target
 Wants=network-online.target
 
