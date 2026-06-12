@@ -59,6 +59,25 @@ backup_env_file() {
   log "Existing .env backed up to $backup_file"
 }
 
+archive_legacy_env_backups() {
+  local backup_dir="$DATA_DIR/env-backups"
+  local found=0
+  shopt -s nullglob
+  for file in "$APP_DIR"/.env.*.bak "$APP_DIR"/.env.bak; do
+    [[ -f "$file" ]] || continue
+    mkdir -p "$backup_dir"
+    mv "$file" "$backup_dir/$(basename "$file")"
+    found=1
+  done
+  shopt -u nullglob
+  if [[ "$found" == "1" ]]; then
+    chown -R root:"$APP_GROUP" "$backup_dir"
+    chmod 0750 "$backup_dir"
+    chmod 0640 "$backup_dir"/.env*.bak 2>/dev/null || true
+    log "Legacy .env backups moved to $backup_dir"
+  fi
+}
+
 latest_matching_file() {
   local pattern="$1"
   shift
@@ -205,6 +224,7 @@ else
   cp -r "$PROJECT_DIR/"* "$APP_DIR/"
   rm -rf "$APP_DIR/data" 2>/dev/null || true
 fi
+archive_legacy_env_backups
 
 cp -a "$PROJECT_DIR/data/"* "$DATA_DIR/" 2>/dev/null || true
 if [[ -d "$APP_DIR/data" && ! -L "$APP_DIR/data" ]]; then

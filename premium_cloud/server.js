@@ -100,6 +100,8 @@ const securityHeaders = {
   ...(isSecureDeployment ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" } : {}),
 };
 const maxInstallerUploadBytes = Math.max(1, Number.parseInt(process.env.NOVASENTINEL_MAX_INSTALLER_UPLOAD_BYTES || "26214400", 10));
+const blockedStaticExtensions = new Set([".env", ".db", ".sqlite", ".sqlite3", ".sqlite3-wal", ".sqlite3-shm", ".bak", ".pem", ".key"]);
+const blockedStaticSegments = ["/data/", "/node_modules/", "/.git/", "/backups/", "/release_uploads/"];
 
 function nowIso() {
   return new Date().toISOString();
@@ -1614,7 +1616,7 @@ function latestReleaseArtifact(pattern) {
 
 function serveDownloadFile(res, fileName) {
   const safeName = path.basename(fileName);
-  if (!safeName || safeName !== fileName) {
+  if (!safeName || safeName !== fileName || isSensitiveStaticName(safeName)) {
     res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
     res.end("Not found");
     return;
@@ -1624,12 +1626,24 @@ function serveDownloadFile(res, fileName) {
 
 function serveAssetFile(res, fileName) {
   const safeName = path.basename(fileName);
-  if (!safeName || safeName !== fileName || !/^[a-z0-9._-]+$/i.test(safeName)) {
+  if (!safeName || safeName !== fileName || isSensitiveStaticName(safeName) || !/^[a-z0-9._-]+$/i.test(safeName)) {
     res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
     res.end("Not found");
     return;
   }
   serveFile(res, path.join(rootDir, "assets", safeName));
+}
+
+function isSensitiveStaticName(fileName) {
+  const safeName = path.basename(String(fileName || ""));
+  if (!safeName || safeName.startsWith(".")) return true;
+  return blockedStaticExtensions.has(path.extname(safeName).toLowerCase());
+}
+
+function hasHiddenOrBlockedStaticSegment(normalizedPath) {
+  const lower = normalizedPath.toLowerCase();
+  if (blockedStaticSegments.some((segment) => lower.includes(segment))) return true;
+  return normalizedPath.split("/").filter(Boolean).some((segment) => segment.startsWith("."));
 }
 
 function serveStatic(req, res, url) {
@@ -1706,6 +1720,11 @@ function serveStatic(req, res, url) {
       res.end("Bad request");
       return;
     }
+    if (isSensitiveStaticName(fileName) || !/^[a-z0-9._-]+$/i.test(fileName)) {
+      res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not found");
+      return;
+    }
     serveFile(res, path.join(releaseUploadDir, fileName));
     return;
   }
@@ -1726,8 +1745,6 @@ function serveStatic(req, res, url) {
   const target = path.join(rootDir, requestPath);
   const resolved = path.resolve(target);
   const relative = path.relative(rootDir, resolved);
-  const blockedExtensions = new Set([".env", ".db", ".sqlite", ".sqlite3", ".sqlite3-wal", ".sqlite3-shm"]);
-  const blockedSegments = ["/data/", "/node_modules/", "/.git/", "/backups/", "/release_uploads/"];
   const normalized = `/${relative.replace(/\\/g, "/")}`;
   const extension = path.extname(relative).toLowerCase();
   if (
@@ -1735,13 +1752,13 @@ function serveStatic(req, res, url) {
     || relative.startsWith("..")
     || path.isAbsolute(relative)
     || /\\0/.test(requestPath)
-    || blockedSegments.some((segment) => normalized.toLowerCase().includes(segment))
+    || hasHiddenOrBlockedStaticSegment(normalized)
   ) {
     res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
     res.end("Not found");
     return;
   }
-  if (blockedExtensions.has(extension) || normalized === ".env") {
+  if (blockedStaticExtensions.has(extension) || isSensitiveStaticName(path.basename(relative))) {
     res.writeHead(403, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
     res.end("Forbidden");
     return;
