@@ -29,9 +29,9 @@ from novaguard.config import (
 from novaguard.core.updater import EXPECTED_ASSET_TEMPLATE, UpdateError, UpdateInfo, is_newer_version
 
 
-PREMIUM_VERIFY_URL = os.getenv("NOVASENTINEL_PREMIUM_VERIFY_URL", "https://novasentinel.app/api/premium/verify")
-UPDATE_URL = os.getenv("NOVASENTINEL_UPDATE_URL") or os.getenv("NOVASENTINEL_PREMIUM_UPDATE_URL", "https://novasentinel.app/api/releases/latest")
-PREMIUM_PUBLIC_KEY = ""
+PREMIUM_VERIFY_URL = os.getenv("NOVASENTINEL_PREMIUM_VERIFY_URL", "https://novasentinel.eu/api/premium/verify")
+UPDATE_URL = os.getenv("NOVASENTINEL_UPDATE_URL") or os.getenv("NOVASENTINEL_PREMIUM_UPDATE_URL", "https://novasentinel.eu/api/releases/latest")
+PREMIUM_PUBLIC_KEY = "7Yqb2LRkAmO37TsI_L5SXFg-58HqpwN2KUV08nkQPXU"
 REQUEST_TIMEOUT_SECONDS = 10
 ALLOWED_FEATURES = {
     "local_ioc_lookup",

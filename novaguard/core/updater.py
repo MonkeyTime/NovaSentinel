@@ -21,7 +21,7 @@ REQUEST_TIMEOUT_SECONDS = 10
 NO_WINDOW_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 TRUSTED_UPDATE_DOWNLOAD_HOSTS = {
     host.strip().lower()
-    for host in os.getenv("NOVASENTINEL_UPDATE_TRUSTED_HOSTS", "novasentinel.app").split(",")
+    for host in os.getenv("NOVASENTINEL_UPDATE_TRUSTED_HOSTS", "novasentinel.eu").split(",")
     if host.strip()
 }
 
