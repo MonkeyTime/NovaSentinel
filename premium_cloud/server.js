@@ -481,7 +481,7 @@ function cleanupSecurityCounters() {
   db.prepare("DELETE FROM security_counters WHERE locked_until < ? AND window_start < ?").run(nowEpoch(), cutoff);
 }
 
-function json(res, statusCode, payload, headers = {}) {
+function json(req, res, statusCode, payload, headers = {}) {
   const body = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
   res.writeHead(statusCode, {
     ...securityHeaders,
@@ -489,7 +489,7 @@ function json(res, statusCode, payload, headers = {}) {
     "Content-Length": body.length,
     ...headers,
   });
-  res.end(body);
+  res.end(req.method === "HEAD" ? undefined : body);
 }
 
 function parseCookies(req) {
@@ -1166,13 +1166,13 @@ async function totpEnrollment(email, mfaSecret) {
 }
 
 async function handleApi(req, res, url) {
-  if (req.method === "GET" && url.pathname === "/api/health") {
-    return json(res, 200, { ok: true });
+  if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/api/health") {
+    return json(req, res, 200, { ok: true });
   }
 
   if (req.method === "GET" && url.pathname === "/api/session") {
     const session = currentSession(req);
-    return json(res, 200, { authenticated: Boolean(session), user: publicUser(session), csrf_token: session?.csrf_token || "" });
+    return json(req, res, 200, { authenticated: Boolean(session), user: publicUser(session), csrf_token: session?.csrf_token || "" });
   }
 
   if ((req.method === "GET" || req.method === "POST") && ["/api/releases/latest", "/api/premium/releases/latest"].includes(url.pathname)) {
@@ -1180,9 +1180,9 @@ async function handleApi(req, res, url) {
     const channel = String(url.searchParams.get("channel") || payload.channel || "stable").slice(0, 20);
     const currentVersion = String(url.searchParams.get("current_version") || payload.current_version || payload.app_version || "");
     if (!isReleaseRequestAllowed(req, channel)) {
-      return json(res, 403, { error: "release_channel_requires_authentication" });
+      return json(req, res, 403, { error: "release_channel_requires_authentication" });
     }
-    return json(res, 200, latestReleasePayload(channel, currentVersion));
+    return json(req, res, 200, latestReleasePayload(channel, currentVersion));
   }
 
   if (req.method === "POST" && url.pathname === "/api/login") {
@@ -1196,7 +1196,7 @@ async function handleApi(req, res, url) {
     if (!user || !verifyPassword(password, user.password_hash)) {
       recordFailure("login", [email, clientIp(req)]);
       audit(user?.id || null, "login_failed", "user", email, { reason: "invalid_credentials" });
-      return json(res, 401, { error: "invalid_credentials" });
+      return json(req, res, 401, { error: "invalid_credentials" });
     }
     clearFailures("login", [email, clientIp(req)]);
     const challengeId = randomToken(24);
@@ -1207,7 +1207,7 @@ async function handleApi(req, res, url) {
       nowIso(),
     );
     audit(user.id, "login_password_verified", "user", user.id, {});
-    return json(res, 200, { mfa_required: Boolean(user.mfa_enabled), challenge_id: challengeId, role: user.role });
+    return json(req, res, 200, { mfa_required: Boolean(user.mfa_enabled), challenge_id: challengeId, role: user.role });
   }
 
   if (req.method === "POST" && url.pathname === "/api/login/verify") {
@@ -1225,13 +1225,13 @@ async function handleApi(req, res, url) {
       .get(String(payload.challenge_id || ""));
     if (!challenge || challenge.expires_at < nowEpoch()) {
       if (challenge?.id) db.prepare("DELETE FROM login_challenges WHERE id = ?").run(challenge.id);
-      return json(res, 401, { error: "challenge_expired" });
+      return json(req, res, 401, { error: "challenge_expired" });
     }
     requireNotLocked("mfa", [challenge.email, clientIp(req)]);
     if (challenge.mfa_enabled && !verifyTotp(challenge.mfa_secret, payload.code)) {
       recordFailure("mfa", [challenge.email, clientIp(req)]);
       audit(challenge.user_id, "mfa_failed", "user", challenge.user_id, {});
-      return json(res, 401, { error: "invalid_mfa" });
+      return json(req, res, 401, { error: "invalid_mfa" });
     }
     const token = randomToken(32);
     const csrfToken = randomToken(32);
@@ -1261,7 +1261,7 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && url.pathname === "/api/logout") {
     const token = parseCookies(req)[sessionCookie];
     if (!token) {
-      return json(res, 200, { ok: true }, { "Set-Cookie": sessionCookieHeader("", 0) });
+      return json(req, res, 200, { ok: true }, { "Set-Cookie": sessionCookieHeader("", 0) });
     }
     const ip = clientIp(req);
     rateLimit(req, "logout");
@@ -1269,7 +1269,7 @@ async function handleApi(req, res, url) {
     requireCsrf(req);
     clearFailures("logout", [token, ip]);
     db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
-    return json(res, 200, { ok: true }, { "Set-Cookie": sessionCookieHeader("", 0) });
+    return json(req, res, 200, { ok: true }, { "Set-Cookie": sessionCookieHeader("", 0) });
   }
 
   if (req.method === "POST" && url.pathname === "/api/checkout/sessions") {
@@ -1281,7 +1281,7 @@ async function handleApi(req, res, url) {
     requireNotLocked("checkout", [email, clientIp(req)]);
     if (!org || !email.includes("@")) {
       recordFailure("checkout", [email, clientIp(req)]);
-      return json(res, 400, { error: "invalid_checkout_payload" });
+      return json(req, res, 400, { error: "invalid_checkout_payload" });
     }
     const sessionId = `ns_chk_${randomToken(18)}`;
     const amount = seats * premiumSeatPriceEur;
@@ -1301,7 +1301,7 @@ async function handleApi(req, res, url) {
     ).run(sessionId, org, email, seats, amount, stripeSession.id, stripeSession.url, nowIso());
     clearFailures("checkout", [email, clientIp(req)]);
     audit(null, "checkout_session_created", "checkout_session", sessionId, { org, email, seats, stripe_session_id: stripeSession.id });
-    return json(res, 201, { id: sessionId, status: "pending", amount_eur: amount, stripe_session_id: stripeSession.id, stripe_checkout_url: stripeSession.url });
+    return json(req, res, 201, { id: sessionId, status: "pending", amount_eur: amount, stripe_session_id: stripeSession.id, stripe_checkout_url: stripeSession.url });
   }
 
   if (req.method === "POST" && url.pathname === "/api/stripe/webhook") {
@@ -1328,13 +1328,13 @@ async function handleApi(req, res, url) {
           stripe_session_id: stripeSession.id || "",
           payment_status: stripeSession.payment_status || "",
         });
-        return json(res, 200, { received: true, pending_payment: true });
+        return json(req, res, 200, { received: true, pending_payment: true });
       }
       const license = createLicenseFromPaidCheckout(localSessionId, stripeSession);
-      return json(res, 200, { received: true, license_id: license.id });
+      return json(req, res, 200, { received: true, license_id: license.id });
     }
     audit(null, "stripe_webhook_ignored", "stripe_event", event.id || event.type, { type: event.type });
-    return json(res, 200, { received: true, ignored: true });
+    return json(req, res, 200, { received: true, ignored: true });
   }
 
   if (req.method === "POST" && url.pathname === "/api/organizations/claim") {
@@ -1349,23 +1349,23 @@ async function handleApi(req, res, url) {
       .get(licenseKey);
     if (!license) {
       recordFailure("claim", [licenseKey || email, clientIp(req)]);
-      return json(res, 404, { error: "license_not_found" });
+      return json(req, res, 404, { error: "license_not_found" });
     }
     if (email !== license.billing_email) {
       recordFailure("claim", [licenseKey || email, clientIp(req)]);
-      return json(res, 403, { error: "billing_email_required" });
+      return json(req, res, 403, { error: "billing_email_required" });
     }
     const passwordError = passwordPolicyError(password);
-    if (passwordError) return json(res, 400, { error: passwordError });
+    if (passwordError) return json(req, res, 400, { error: passwordError });
     const existing = db.prepare("SELECT COUNT(*) AS count FROM users WHERE organization_id = ?").get(license.organization_id).count;
-    if (existing > 0) return json(res, 409, { error: "organization_already_claimed" });
+    if (existing > 0) return json(req, res, 409, { error: "organization_already_claimed" });
     const mfaSecret = base32Secret();
     const result = db
       .prepare("INSERT INTO users(organization_id, email, password_hash, role, mfa_secret, created_at) VALUES (?, ?, ?, 'user', ?, ?)")
       .run(license.organization_id, email, hashPassword(password), mfaSecret, nowIso());
     audit(Number(result.lastInsertRowid), "organization_claimed", "organization", license.organization_id, { license_id: license.id });
     clearFailures("claim", [licenseKey || email, clientIp(req)]);
-    return json(res, 201, { ok: true, email, ...(await totpEnrollment(email, mfaSecret)) });
+    return json(req, res, 201, { ok: true, email, ...(await totpEnrollment(email, mfaSecret)) });
   }
 
   if (req.method === "POST" && url.pathname === "/api/premium/verify") {
@@ -1376,7 +1376,7 @@ async function handleApi(req, res, url) {
     const deviceName = String(payload.device_name || payload.hostname || "unknown-device").trim().slice(0, 120);
     const appVersion = String(payload.app_version || "unknown").trim().slice(0, 40);
     const channel = String(payload.channel || "stable").trim().slice(0, 20);
-    if (!licenseKey || !deviceId) return json(res, 400, { error: "license_key_and_device_id_required" });
+    if (!licenseKey || !deviceId) return json(req, res, 400, { error: "license_key_and_device_id_required" });
     requireNotLocked("premiumVerify", [clientIp(req)]);
     requireNotLocked("premiumVerify", [licenseKey, clientIp(req)]);
     const license = db
@@ -1385,14 +1385,14 @@ async function handleApi(req, res, url) {
     if (!license || license.status !== "active") {
       recordFailure("premiumVerify", [licenseKey, clientIp(req)]);
       recordFailure("premiumVerify", [clientIp(req)]);
-      return json(res, 403, { error: "license_inactive_or_unknown" });
+      return json(req, res, 403, { error: "license_inactive_or_unknown" });
     }
     const existing = db.prepare("SELECT * FROM activations WHERE license_id = ? AND device_id = ?").get(license.id, deviceId);
     if (existing) {
       db.prepare("UPDATE activations SET device_name = ?, app_version = ?, channel = ?, last_seen_at = ? WHERE id = ?").run(deviceName, appVersion, channel, nowIso(), existing.id);
     } else {
       const activeCount = db.prepare("SELECT COUNT(*) AS count FROM activations WHERE license_id = ?").get(license.id).count;
-      if (activeCount >= license.seats) return json(res, 403, { error: "seat_limit_reached" });
+      if (activeCount >= license.seats) return json(req, res, 403, { error: "seat_limit_reached" });
       db.prepare(
         "INSERT INTO activations(license_id, device_name, device_id, app_version, channel, activated_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       ).run(license.id, deviceName, deviceId, appVersion, channel, nowIso(), nowIso());
@@ -1411,7 +1411,7 @@ async function handleApi(req, res, url) {
     };
     clearFailures("premiumVerify", [licenseKey, clientIp(req)]);
     clearFailures("premiumVerify", [clientIp(req)]);
-    return json(res, 200, { entitlement, signature: signPayload(entitlement) });
+    return json(req, res, 200, { entitlement, signature: signPayload(entitlement) });
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin-console/license/info") {
@@ -1420,14 +1420,14 @@ async function handleApi(req, res, url) {
     const licenseKey = String(payload.license_key || "").trim();
     const requestedChannel = String(payload.channel || "stable").trim().toLowerCase();
     const channel = requestedChannel === "beta" ? "beta" : "stable";
-    if (!licenseKey) return json(res, 400, { error: "license_key_required" });
+    if (!licenseKey) return json(req, res, 400, { error: "license_key_required" });
     requireNotLocked("consoleLookup", [clientIp(req)]);
     requireNotLocked("consoleLookup", [licenseKey, clientIp(req)]);
     const data = resolveLicenseForConsole(licenseKey);
     if (!data || data.license.status !== "active" || isExpiredEntitlement(data.license.entitlement_expires_at)) {
       recordFailure("consoleLookup", [licenseKey, clientIp(req)]);
       recordFailure("consoleLookup", [clientIp(req)]);
-      return json(res, 404, { error: "license_inactive_or_unknown" });
+      return json(req, res, 404, { error: "license_inactive_or_unknown" });
     }
     clearFailures("consoleLookup", [licenseKey, clientIp(req)]);
     clearFailures("consoleLookup", [clientIp(req)]);
@@ -1446,13 +1446,13 @@ async function handleApi(req, res, url) {
     audit(null, "admin_console_license_lookup", "license", String(data.license.id), {
       channel,
     });
-    return json(res, 200, { ok: true, ...data });
+    return json(req, res, 200, { ok: true, ...data });
   }
 
   if (req.method === "GET" && url.pathname === "/api/dashboard/user") {
     const user = requireUser(req);
     const orgId = user.role === "superadmin" && url.searchParams.get("organization_id") ? Number(url.searchParams.get("organization_id")) : user.organization_id;
-    if (!orgId) return json(res, 403, { error: "organization_required" });
+    if (!orgId) return json(req, res, 403, { error: "organization_required" });
     const organization = db.prepare("SELECT * FROM organizations WHERE id = ?").get(orgId);
     const licenses = db.prepare("SELECT * FROM licenses WHERE organization_id = ? ORDER BY id DESC").all(orgId);
     const licenseIds = licenses.map((license) => license.id);
@@ -1461,7 +1461,7 @@ async function handleApi(req, res, url) {
       : [];
     const seats = licenses.reduce((sum, license) => sum + license.seats, 0);
     const activeSeats = licenses.reduce((sum, license) => sum + license.active_seats, 0);
-    return json(res, 200, {
+    return json(req, res, 200, {
       organization,
       metrics: {
         seats,
@@ -1494,7 +1494,7 @@ async function handleApi(req, res, url) {
     const auditEvents = db.prepare("SELECT * FROM audit_events ORDER BY id DESC LIMIT 50").all().map(readAudit);
     const releases = db.prepare("SELECT * FROM releases ORDER BY id DESC LIMIT 10").all().map(publicRelease);
     const seats = licenses.reduce((sum, license) => sum + license.seats, 0);
-    return json(res, 200, {
+    return json(req, res, 200, {
       metrics: {
         organizations: organizations.length,
         seats,
@@ -1516,7 +1516,7 @@ async function handleApi(req, res, url) {
     const payload = await readJson(req);
     db.prepare("UPDATE licenses SET status = 'revoked', updated_at = ? WHERE id = ?").run(nowIso(), licenseId);
     audit(user.id, "license_revoked", "license", licenseId, { reason: payload.reason || "superadmin_action" });
-    return json(res, 200, { ok: true, license_id: licenseId, status: "revoked" });
+    return json(req, res, 200, { ok: true, license_id: licenseId, status: "revoked" });
   }
 
   if (req.method === "POST" && url.pathname === "/api/superadmin/licenses/issue") {
@@ -1526,7 +1526,7 @@ async function handleApi(req, res, url) {
     const org = String(payload.org || "").trim();
     const email = String(payload.email || "").trim().toLowerCase();
     const seats = Math.max(1, Math.min(5000, Number.parseInt(payload.seats || "1", 10)));
-    if (!org || !email.includes("@")) return json(res, 400, { error: "invalid_license_issue_payload" });
+    if (!org || !email.includes("@")) return json(req, res, 400, { error: "invalid_license_issue_payload" });
     const orgResult = db.prepare("INSERT INTO organizations(name, billing_email, created_at) VALUES (?, ?, ?)").run(org, email, nowIso());
     const organizationId = Number(orgResult.lastInsertRowid);
     const licenseKey = makeLicenseKey(org);
@@ -1541,7 +1541,7 @@ async function handleApi(req, res, url) {
       .run(organizationId, licenseKey, seats, expiresAt, nowIso(), nowIso());
     const licenseId = Number(licenseResult.lastInsertRowid);
     audit(user.id, "manual_license_issued", "license", licenseId, { organization: org, billing_email: email, seats });
-    return json(res, 201, {
+    return json(req, res, 201, {
       ok: true,
       organization: db.prepare("SELECT * FROM organizations WHERE id = ?").get(organizationId),
       license: db.prepare("SELECT * FROM licenses WHERE id = ?").get(licenseId),
@@ -1553,7 +1553,7 @@ async function handleApi(req, res, url) {
     requireRole(req, "superadmin");
     const payload = await readJson(req);
     const release = await inspectGithubReleaseAsset(payload.installer_url);
-    return json(res, 200, { ok: true, release });
+    return json(req, res, 200, { ok: true, release });
   }
 
   if (req.method === "POST" && url.pathname.match(/^\/api\/superadmin\/licenses\/\d+\/resign$/)) {
@@ -1563,7 +1563,7 @@ async function handleApi(req, res, url) {
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     db.prepare("UPDATE licenses SET entitlement_version = entitlement_version + 1, entitlement_expires_at = ?, updated_at = ? WHERE id = ?").run(expiresAt, nowIso(), licenseId);
     audit(user.id, "entitlement_resigned", "license", licenseId, {});
-    return json(res, 200, { ok: true, license: db.prepare("SELECT * FROM licenses WHERE id = ?").get(licenseId) });
+    return json(req, res, 200, { ok: true, license: db.prepare("SELECT * FROM licenses WHERE id = ?").get(licenseId) });
   }
 
   if (req.method === "POST" && url.pathname === "/api/superadmin/releases/publish") {
@@ -1579,11 +1579,11 @@ async function handleApi(req, res, url) {
       if (upload?.filename) {
         const normalizedFileName = String(upload.filename).toLowerCase();
         if (!normalizedFileName.endsWith(".exe")) {
-          return json(res, 400, { error: "installer_invalid_file_type" });
+          return json(req, res, 400, { error: "installer_invalid_file_type" });
         }
       }
       if (upload?.data && upload.data.length > maxInstallerUploadBytes) {
-        return json(res, 413, { error: "installer_too_large" });
+        return json(req, res, 413, { error: "installer_too_large" });
       }
     } else {
       payload = await readJson(req);
@@ -1591,8 +1591,8 @@ async function handleApi(req, res, url) {
     const version = String(payload.version || "").trim();
     const channel = String(payload.channel || "stable").trim().slice(0, 20);
     const notes = String(payload.notes || "").trim().slice(0, 4000);
-    if (!version) return json(res, 400, { error: "version_required" });
-    if (!["stable", "beta"].includes(channel)) return json(res, 400, { error: "invalid_release_channel" });
+    if (!version) return json(req, res, 400, { error: "version_required" });
+    if (!["stable", "beta"].includes(channel)) return json(req, res, 400, { error: "invalid_release_channel" });
     let installerPath = "";
     let installerUrl = String(payload.installer_url || "").trim();
     let sha256 = String(payload.sha256 || "").trim().toLowerCase();
@@ -1608,22 +1608,22 @@ async function handleApi(req, res, url) {
       installerUrl = `/release-downloads/${encodeURIComponent(fileName)}`;
     } else {
       const parsed = parseGitHubReleaseAssetUrl(installerUrl);
-      if (!parsed) return json(res, 400, { error: "github_release_asset_url_required" });
+      if (!parsed) return json(req, res, 400, { error: "github_release_asset_url_required" });
       const remote = await hashRemoteAsset(parsed.downloadUrl);
-      if (sha256 && sha256 !== remote.sha256) return json(res, 400, { error: "sha256_mismatch" });
+      if (sha256 && sha256 !== remote.sha256) return json(req, res, 400, { error: "sha256_mismatch" });
       sha256 = remote.sha256;
       sizeBytes = remote.size_bytes;
       installerUrl = parsed.downloadUrl;
     }
-    if (!installerUrl) return json(res, 400, { error: "installer_required" });
-    if (!sha256 || !/^[0-9a-f]{64}$/.test(sha256)) return json(res, 400, { error: "sha256_required" });
+    if (!installerUrl) return json(req, res, 400, { error: "installer_required" });
+    if (!sha256 || !/^[0-9a-f]{64}$/.test(sha256)) return json(req, res, 400, { error: "sha256_required" });
     const release = createReleaseRecord({ version, channel, installerUrl, installerPath, sha256, sizeBytes, notes, actorUserId: user.id });
-    return json(res, 201, { ok: true, release });
+    return json(req, res, 201, { ok: true, release });
   }
 
   if (req.method === "GET" && url.pathname === "/api/superadmin/audit/export") {
     requireRole(req, "superadmin");
-    return json(res, 200, { audit_events: db.prepare("SELECT * FROM audit_events ORDER BY id DESC LIMIT 500").all().map(readAudit) });
+    return json(req, res, 200, { audit_events: db.prepare("SELECT * FROM audit_events ORDER BY id DESC LIMIT 500").all().map(readAudit) });
   }
 
   if (req.method === "POST" && url.pathname === "/api/superadmin/backups/create") {
@@ -1631,10 +1631,10 @@ async function handleApi(req, res, url) {
     const user = requireRole(req, "superadmin");
     const backupPath = backupDatabase("superadmin_manual");
     audit(user.id, "database_backup_requested", "database", backupPath ? path.basename(backupPath) : "none", {});
-    return json(res, 201, { ok: true, backup: backupPath ? path.basename(backupPath) : "" });
+    return json(req, res, 201, { ok: true, backup: backupPath ? path.basename(backupPath) : "" });
   }
 
-  return json(res, 404, { error: "not_found" });
+  return json(req, res, 404, { error: "not_found" });
 }
 
 function readAudit(row) {
@@ -1886,7 +1886,7 @@ const server = http.createServer(async (req, res) => {
       const retryAfter = Math.ceil(error.retryAfter);
       res.setHeader("Retry-After", String(retryAfter));
     }
-    json(res, statusCode, {
+    json(req, res, statusCode, {
       error: error.code || (statusCode >= 500 ? "server_error" : "request_error"),
       message: statusCode >= 500 ? "Internal server error." : error.message,
       ...(error.retryAfter ? { retry_after: Math.ceil(error.retryAfter) } : {}),
