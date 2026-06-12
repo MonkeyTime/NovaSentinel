@@ -114,7 +114,7 @@ The private signing key and Stripe secret key must never be shipped in frontend 
 
 ## API surface
 
-- `GET /api/health`: service/database status.
+- `GET /api/health`: minimal public service health.
 - `POST /api/login` then `POST /api/login/verify`: password plus TOTP, creates an HTTP-only session.
 - `POST /api/checkout/sessions`: creates a real Stripe Checkout Session.
 - `POST /api/stripe/webhook`: confirms payment and creates organization/license.

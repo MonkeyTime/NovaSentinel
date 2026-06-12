@@ -86,7 +86,7 @@ Le desktop doit refuser les mises à jour si:
 
 | Méthode | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/health` | Santé du service + état de Stripe/signature/bootstrap |
+| `GET` | `/api/health` | Santé publique minimale du service |
 | `GET` | `/api/session` | Session courante + token CSRF |
 | `POST` | `/api/setup/superadmin` | Bootstrap du premier superadmin (token bootstrap requis) |
 | `POST` | `/api/login` | Étape 1: vérification email/mot de passe |

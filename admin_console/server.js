@@ -7,6 +7,7 @@ const host = process.env.NOVASENTINEL_ADMIN_HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.NOVASENTINEL_ADMIN_PORT || "8790", 10);
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === "production";
+const adminToken = process.env.NOVASENTINEL_ADMIN_TOKEN || "";
 
 const securityHeaders = {
   "X-Content-Type-Options": "nosniff",
@@ -31,15 +32,23 @@ const securityHeaders = {
 };
 const maxBodyBytes = 20 * 1024 * 1024;
 
+function isLoopbackHost(value) {
+  const hostName = String(value || "").trim().toLowerCase();
+  return hostName === "localhost" || hostName === "127.0.0.1" || hostName === "::1" || hostName === "[::1]";
+}
+
+if (!isLoopbackHost(host) && !adminToken) {
+  throw new Error("NOVASENTINEL_ADMIN_TOKEN is required when the admin console is not bound to loopback.");
+}
+
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
   [".css", "text/css; charset=utf-8"],
-  [".json", "application/json; charset=utf-8"],
   [".svg", "image/svg+xml"],
   [".ico", "image/x-icon"]
 ]);
-const allowedStaticExtensions = new Set([".html", ".js", ".css", ".json", ".svg", ".ico"]);
+const allowedStaticExtensions = new Set([".html", ".js", ".css", ".svg", ".ico"]);
 
 function isSafeStaticPath(filePath) {
   const relative = path.relative(rootDir, filePath);
@@ -93,6 +102,12 @@ function parseCloudRequest(raw) {
 }
 
 async function readBody(req) {
+  const declaredLength = Number.parseInt(String(req.headers["content-length"] || ""), 10);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+    const error = new Error("request_too_large");
+    error.statusCode = 413;
+    throw error;
+  }
   const chunks = [];
   let total = 0;
   for await (const chunk of req) {
@@ -111,12 +126,18 @@ async function callCloudApi(cloudUrl, path, body, method = "POST") {
   const endpoint = new URL(path, parseCloudUrl(cloudUrl));
   const response = await fetch(endpoint, {
     method,
+    redirect: "manual",
     headers: {
       Accept: "application/json",
       ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+  if (response.status >= 300 && response.status < 400) {
+    const error = new Error("cloud_redirect_blocked");
+    error.statusCode = 400;
+    throw error;
+  }
   const payloadText = await response.text();
   let payload = {};
   try {
@@ -141,12 +162,22 @@ function parseCloudUrl(raw) {
   if (!["http:", "https:"].includes(parsed.protocol)) {
     throw new Error("unsupported_cloud_url");
   }
-  const trusted = process.env.NOVASENTINEL_ADMIN_ALLOWED_CLOUD_HOSTS?.trim();
-  const allowedHosts = trusted
-    ? trusted.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean)
+  if (parsed.protocol !== "https:" && !isLoopbackHost(parsed.hostname)) {
+    throw new Error("https_required");
+  }
+  const trustedOrigins = process.env.NOVASENTINEL_ADMIN_ALLOWED_CLOUD_ORIGINS?.trim();
+  const legacyTrustedHosts = process.env.NOVASENTINEL_ADMIN_ALLOWED_CLOUD_HOSTS?.trim();
+  const allowedOrigins = trustedOrigins
+    ? trustedOrigins.split(",").map((origin) => origin.trim().replace(/\/+$/, "").toLowerCase()).filter(Boolean)
+    : [];
+  const allowedHosts = legacyTrustedHosts
+    ? legacyTrustedHosts.split(",").map((trustedHost) => trustedHost.trim().toLowerCase()).filter(Boolean)
     : ["127.0.0.1", "localhost"];
   const hostname = parsed.hostname.toLowerCase();
-  if (!allowedHosts.includes(hostname)) {
+  if (allowedOrigins.length && !allowedOrigins.includes(parsed.origin.toLowerCase())) {
+    throw new Error("cloud_origin_not_allowed");
+  }
+  if (!allowedOrigins.length && !allowedHosts.includes(hostname)) {
     throw new Error("cloud_host_not_allowed");
   }
   parsed.username = "";
@@ -163,9 +194,13 @@ async function fetchCloudHealth(cloudUrl) {
   try {
     const response = await fetch(endpoint, {
       method: "GET",
+      redirect: "manual",
       signal: controller.signal,
       headers: { Accept: "application/json" }
     });
+    if (response.status >= 300 && response.status < 400) {
+      return { ok: false, status: 400, cloud_origin: base.origin, body: { error: "cloud_redirect_blocked" } };
+    }
     const text = await response.text();
     let json = null;
     try {
@@ -213,8 +248,45 @@ function serveStatic(req, res, url) {
   });
 }
 
+function assertLocalApiAllowed(req) {
+  if (!String(req.url || "").startsWith("/api/")) return;
+  const secFetchSite = String(req.headers["sec-fetch-site"] || "").toLowerCase();
+  if (secFetchSite === "cross-site") {
+    const error = new Error("cross_site_request_blocked");
+    error.statusCode = 403;
+    throw error;
+  }
+  const origin = String(req.headers.origin || "");
+  if (origin) {
+    let parsedOrigin;
+    try {
+      parsedOrigin = new URL(origin);
+    } catch {
+      const error = new Error("invalid_origin");
+      error.statusCode = 403;
+      throw error;
+    }
+    if (parsedOrigin.host !== req.headers.host) {
+      const error = new Error("origin_not_allowed");
+      error.statusCode = 403;
+      throw error;
+    }
+  }
+  if (!isLoopbackHost(host) && adminToken && req.headers["x-admin-token"] !== adminToken) {
+    const error = new Error("admin_token_required");
+    error.statusCode = 401;
+    throw error;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || `${host}:${port}`}`);
+  try {
+    assertLocalApiAllowed(req);
+  } catch (error) {
+    sendJson(res, error.statusCode || 403, { ok: false, error: error.message || "request_blocked" });
+    return;
+  }
 
   if (req.method === "GET" && url.pathname === "/api/local/health") {
     sendJson(res, 200, {

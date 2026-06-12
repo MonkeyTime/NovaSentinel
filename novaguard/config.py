@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -13,8 +14,10 @@ from novaguard.models import AppSettings
 
 
 APPDATA_DIR = Path(os.getenv("APPDATA", str(Path.home() / "AppData" / "Roaming")))
+PROGRAMDATA_DIR = Path(os.getenv("PROGRAMDATA", str(Path.home() / "AppData" / "Local")))
 STATE_DIR = APPDATA_DIR / APP_NAME
-QUARANTINE_DIR = STATE_DIR / "quarantine"
+SECURE_STATE_DIR = PROGRAMDATA_DIR / APP_NAME
+QUARANTINE_DIR = SECURE_STATE_DIR / "quarantine"
 LOG_DIR = STATE_DIR / "logs"
 SETTINGS_FILE = STATE_DIR / "settings.json"
 HISTORY_FILE = STATE_DIR / "history.json"
@@ -111,6 +114,29 @@ def _prune_legacy_default_exclusions(exclusions: list[str]) -> list[str]:
 def ensure_runtime_dirs() -> None:
     for directory in [STATE_DIR, QUARANTINE_DIR, LOG_DIR, CANARY_DIR, RECOVERY_DIR, PREMIUM_DIR]:
         directory.mkdir(parents=True, exist_ok=True)
+    _lock_down_directory(SECURE_STATE_DIR)
+
+
+def _lock_down_directory(directory: Path) -> None:
+    if os.name != "nt" or not directory.exists():
+        return
+    try:
+        subprocess.run(
+            [
+                "icacls",
+                str(directory),
+                "/inheritance:r",
+                "/grant:r",
+                "Administrators:(OI)(CI)F",
+                "SYSTEM:(OI)(CI)F",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except OSError:
+        pass
 
 
 def load_settings() -> AppSettings:

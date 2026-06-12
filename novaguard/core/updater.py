@@ -26,6 +26,52 @@ TRUSTED_UPDATE_DOWNLOAD_HOSTS = {
 }
 
 
+def _secure_update_root() -> Path:
+    if getattr(sys, "frozen", False):
+        base = Path(os.getenv("PROGRAMDATA", str(Path.home() / "AppData" / "Local")))
+    else:
+        base = Path(os.getenv("NOVASENTINEL_UPDATE_ROOT", tempfile.gettempdir()))
+    root = base / "NovaSentinel" / "updates"
+    root.mkdir(parents=True, exist_ok=True)
+    _lock_down_directory(root.parent)
+    return root
+
+
+def _lock_down_directory(directory: Path) -> None:
+    if os.name != "nt" or not directory.exists():
+        return
+    try:
+        subprocess.run(
+            [
+                "icacls",
+                str(directory),
+                "/inheritance:r",
+                "/grant:r",
+                "Administrators:(OI)(CI)F",
+                "SYSTEM:(OI)(CI)F",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            creationflags=NO_WINDOW_FLAGS,
+        )
+    except OSError:
+        pass
+
+
+def _powershell_path() -> str:
+    candidate = Path(os.getenv("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    return str(candidate)
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 class UpdateError(RuntimeError):
     pass
 
@@ -109,8 +155,9 @@ def update_from_release_payload(payload: dict[str, Any], current_version: str) -
 
 def download_update_installer(update: UpdateInfo) -> Path:
     _require_github_download_url(update.download_url)
-    target_dir = Path(tempfile.gettempdir()) / "NovaSentinel" / "updates" / update.version
+    target_dir = _secure_update_root() / update.version
     target_dir.mkdir(parents=True, exist_ok=True)
+    _lock_down_directory(target_dir)
     target_path = target_dir / update.asset_name
     temp_path = target_path.with_suffix(target_path.suffix + ".download")
     request = urllib.request.Request(update.download_url, headers={"User-Agent": "NovaSentinel-Updater"})
@@ -143,6 +190,7 @@ def download_update_installer(update: UpdateInfo) -> Path:
         if digest.lower() != update.sha256.lower():
             raise UpdateError("Downloaded installer hash does not match the GitHub release digest.")
         temp_path.replace(target_path)
+        target_path.with_suffix(target_path.suffix + ".sha256").write_text(update.sha256.lower(), encoding="ascii")
         return target_path
     except Exception:
         temp_path.unlink(missing_ok=True)
@@ -152,10 +200,18 @@ def download_update_installer(update: UpdateInfo) -> Path:
 def launch_update_installer(installer_path: Path) -> None:
     if not installer_path.exists():
         raise UpdateError("Downloaded installer is missing.")
+    expected_sha_path = installer_path.with_suffix(installer_path.suffix + ".sha256")
+    if not expected_sha_path.exists():
+        raise UpdateError("Downloaded installer verification metadata is missing.")
+    expected_sha = expected_sha_path.read_text(encoding="ascii").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+        raise UpdateError("Downloaded installer verification metadata is invalid.")
+    if _file_sha256(installer_path).lower() != expected_sha:
+        raise UpdateError("Downloaded installer changed after verification.")
     script_path = _write_update_script(installer_path)
     subprocess.Popen(
         [
-            "powershell.exe",
+            _powershell_path(),
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
@@ -171,9 +227,11 @@ def launch_update_installer(installer_path: Path) -> None:
 def _write_update_script(installer_path: Path) -> Path:
     process_id = os.getpid()
     install_dir = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path.cwd()
-    script_dir = Path(tempfile.gettempdir()) / "NovaSentinel" / "updates"
+    script_dir = _secure_update_root()
     script_dir.mkdir(parents=True, exist_ok=True)
+    _lock_down_directory(script_dir)
     script_path = script_dir / "run_update.ps1"
+    powershell = _powershell_path()
     script = f"""
 $ErrorActionPreference = "SilentlyContinue"
 $Installer = {json.dumps(str(installer_path))}
@@ -181,13 +239,14 @@ $AppPid = {process_id}
 $InstallDir = {json.dumps(str(install_dir))}
 $Uninstaller = Join-Path $InstallDir "uninstall_runtime.ps1"
 $DeploymentConfig = "$env:ProgramData\\NovaSentinel\\premium_deployment.json"
+$PowerShell = {json.dumps(powershell)}
 
 Start-Sleep -Milliseconds 500
 Get-Process -Id $AppPid -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 800
 
 if (Test-Path -LiteralPath $Uninstaller) {{
-    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $Uninstaller, "-KeepData") -Wait -WindowStyle Hidden
+    Start-Process -FilePath $PowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $Uninstaller, "-KeepData") -Wait -WindowStyle Hidden
     Start-Sleep -Milliseconds 800
 }}
 

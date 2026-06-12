@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shutil
+import re
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -133,12 +134,24 @@ class QuarantineManager:
         return entries
 
     def restore(self, entry_id: str) -> bool:
+        if not re.fullmatch(r"[0-9a-f]{32}", str(entry_id)):
+            return False
         metadata_path = QUARANTINE_DIR / f"{entry_id}.json"
         payload_path = QUARANTINE_DIR / f"{entry_id}.bin"
         if not metadata_path.exists() or not payload_path.exists():
             return False
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        original_path = Path(metadata["original_path"])
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        if metadata.get("id") != entry_id:
+            return False
+        recorded_payload = metadata.get("payload_path")
+        if recorded_payload and Path(recorded_payload).name != payload_path.name:
+            return False
+        original_path = Path(str(metadata.get("original_path", "")))
+        if not str(original_path) or is_system_managed_path(original_path):
+            return False
         original_path.parent.mkdir(parents=True, exist_ok=True)
         destination = original_path
         counter = 1

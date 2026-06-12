@@ -12,9 +12,13 @@ if exist ".env" (
       set "line=!line:~0,255!"
       if not "!line:~0,1!"=="#" (
         for /f "tokens=1,* delims==" %%A in ("!line!") do (
-          if not "%%A"=="" (
-            set "%%A=%%B"
-          )
+          if /i "%%A"=="NODE_ENV" set "%%A=%%B"
+          if /i "%%A"=="NOVASENTINEL_ADMIN_HOST" set "%%A=%%B"
+          if /i "%%A"=="NOVASENTINEL_ADMIN_PORT" set "%%A=%%B"
+          if /i "%%A"=="NOVASENTINEL_ADMIN_ALLOWED_CLOUD_HOSTS" set "%%A=%%B"
+          if /i "%%A"=="NOVASENTINEL_ADMIN_ALLOWED_CLOUD_ORIGINS" set "%%A=%%B"
+          if /i "%%A"=="NOVASENTINEL_ADMIN_TOKEN" set "%%A=%%B"
+          if /i "%%A"=="NOVASENTINEL_NODE_BIN" set "%%A=%%B"
         )
       )
     )

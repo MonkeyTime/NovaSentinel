@@ -13,11 +13,21 @@ fi
 ENV_FILE="${NOVASENTINEL_ADMIN_ENV_FILE:-$APP_DIR/.env}"
 
 if [[ -f "$ENV_FILE" ]]; then
-  # shellcheck disable=SC1090
-  set -a
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
-  set +a
+  while IFS='=' read -r key value || [[ -n "$key" ]]; do
+    key="${key%%[[:space:]]*}"
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    case "$key" in
+      NODE_ENV|NOVASENTINEL_ADMIN_HOST|NOVASENTINEL_ADMIN_PORT|NOVASENTINEL_ADMIN_ALLOWED_CLOUD_HOSTS|NOVASENTINEL_ADMIN_ALLOWED_CLOUD_ORIGINS|NOVASENTINEL_ADMIN_TOKEN|NOVASENTINEL_NODE_BIN)
+        export "$key=$value"
+        ;;
+    esac
+  done < "$ENV_FILE"
 fi
 
 NODE_BIN="${NOVASENTINEL_NODE_BIN:-}"

@@ -162,11 +162,40 @@ def parse_install_dir(raw_dir: str | None) -> Path | None:
     if not raw_dir:
         return None
     candidate = Path(raw_dir).expanduser()
-    if not candidate.exists():
+    if candidate.exists() and not candidate.is_dir():
         return None
-    if not candidate.is_dir():
+    parent = candidate.parent
+    if not parent.exists():
         return None
     return candidate
+
+
+def default_install_dir() -> Path:
+    return Path(os.getenv("ProgramFiles", r"C:\Program Files")) / APP_NAME
+
+
+def powershell_path() -> str:
+    candidate = Path(os.getenv("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    return str(candidate)
+
+
+def lock_down_directory(directory: Path) -> None:
+    if os.name != "nt" or not directory.exists():
+        return
+    subprocess.run(
+        [
+            "icacls",
+            str(directory),
+            "/inheritance:r",
+            "/grant:r",
+            "Administrators:(OI)(CI)F",
+            "SYSTEM:(OI)(CI)F",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+        **no_window_kwargs(),
+    )
 
 
 def _premium_config_path() -> Path:
@@ -196,6 +225,7 @@ def write_premium_deployment_file(raw_path: str | None) -> None:
         raise RuntimeError("Le fichier de préconfiguration est invalide.")
     destination = _premium_config_path()
     destination.parent.mkdir(parents=True, exist_ok=True)
+    lock_down_directory(destination.parent)
     destination.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
 
 
@@ -306,7 +336,7 @@ def create_shortcuts(install_dir: Path) -> None:
         ]
     )
     subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+        [powershell_path(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=True,
@@ -342,13 +372,14 @@ def install() -> int:
 
     install_dir = parse_install_dir(args.install_dir)
     if install_dir is None:
-        install_dir = Path(os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))) / "Programs" / APP_NAME
+        install_dir = default_install_dir()
     install_dir.parent.mkdir(parents=True, exist_ok=True)
 
     if not args.update:
         stop_running_app()
     shutil.rmtree(install_dir, ignore_errors=True)
     install_dir.mkdir(parents=True, exist_ok=True)
+    lock_down_directory(install_dir)
 
     with zipfile.ZipFile(zip_path) as archive:
         archive.extractall(install_dir)

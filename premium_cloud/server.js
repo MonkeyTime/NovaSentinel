@@ -100,6 +100,7 @@ const securityHeaders = {
   ...(isSecureDeployment ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" } : {}),
 };
 const maxInstallerUploadBytes = Math.max(1, Number.parseInt(process.env.NOVASENTINEL_MAX_INSTALLER_UPLOAD_BYTES || "26214400", 10));
+const allowedPublicStaticExtensions = new Set([".html", ".css", ".js", ".png", ".ico", ".svg", ".webmanifest", ".xml", ".txt"]);
 const blockedStaticExtensions = new Set([".env", ".db", ".sqlite", ".sqlite3", ".sqlite3-wal", ".sqlite3-shm", ".bak", ".pem", ".key"]);
 const blockedStaticSegments = ["/data/", "/node_modules/", "/.git/", "/backups/", "/release_uploads/"];
 
@@ -510,12 +511,18 @@ function parseCookies(req) {
   );
 }
 
-async function readBody(req) {
+async function readBody(req, limit = maxBodyBytes) {
+  const declaredLength = Number.parseInt(String(req.headers["content-length"] || ""), 10);
+  if (Number.isFinite(declaredLength) && declaredLength > limit) {
+    const error = new Error("Payload trop volumineux.");
+    error.statusCode = 413;
+    throw error;
+  }
   const chunks = [];
   let total = 0;
   for await (const chunk of req) {
     total += chunk.length;
-    if (total > maxBodyBytes) {
+    if (total > limit) {
       const error = new Error("Payload trop volumineux.");
       error.statusCode = 413;
       throw error;
@@ -526,7 +533,7 @@ async function readBody(req) {
 }
 
 async function readJson(req) {
-  const body = await readBody(req);
+  const body = await readBody(req, 1024 * 1024);
   if (!body.length) return {};
   try {
     return JSON.parse(body.toString("utf8"));
@@ -555,7 +562,7 @@ async function readMultipart(req) {
     throw error;
   }
   const boundary = Buffer.from(`--${boundaryMatch[1] || boundaryMatch[2]}`);
-  const body = await readBody(req);
+  const body = await readBody(req, maxBodyBytes);
   const fields = {};
   const files = {};
   let cursor = 0;
@@ -798,7 +805,7 @@ function makeLicenseKey(org) {
       .replace(/[^A-Z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 12) || "ORG";
-  return `NSP-PREMIUM-${slug}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+  return `NSP-PREMIUM-${slug}-${crypto.randomBytes(20).toString("hex").toUpperCase()}`;
 }
 
 function deploymentPayload(licenseKey) {
@@ -1020,6 +1027,11 @@ function parseGitHubReleaseAssetUrl(rawUrl) {
   return { owner, repo, tag, assetName, downloadUrl: parsed.toString() };
 }
 
+function isReleaseRequestAllowed(req, channel) {
+  if (channel === "stable") return true;
+  return Boolean(currentSession(req));
+}
+
 async function fetchGithubJson(url) {
   const response = await fetch(url, { headers: githubHeaders() });
   const payload = await response.json().catch(() => ({}));
@@ -1039,6 +1051,24 @@ async function hashRemoteAsset(url) {
     throw error;
   }
   const response = await fetch(url, { headers: githubHeaders({ Accept: "application/octet-stream" }) });
+  try {
+    const finalUrl = new URL(response.url || url);
+    const finalHost = finalUrl.hostname.toLowerCase();
+    const trustedFinalHost =
+      finalHost === "github.com"
+      || finalHost === "objects.githubusercontent.com"
+      || finalHost.endsWith(".githubusercontent.com");
+    if (finalUrl.protocol !== "https:" || !trustedFinalHost) {
+      const error = new Error("Destination finale GitHub non autorisee.");
+      error.statusCode = 400;
+      throw error;
+    }
+  } catch (error) {
+    if (error.statusCode) throw error;
+    const wrapped = new Error("Destination finale GitHub invalide.");
+    wrapped.statusCode = 400;
+    throw wrapped;
+  }
   if (!response.ok) {
     const error = new Error(`Téléchargement GitHub impossible (${response.status}).`);
     error.statusCode = response.status >= 500 ? 502 : 400;
@@ -1137,12 +1167,7 @@ async function totpEnrollment(email, mfaSecret) {
 
 async function handleApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return json(res, 200, {
-      ok: true,
-      database: dbPath,
-      stripe_configured: Boolean(stripeSecretKey),
-      premium_signing_configured: Boolean(premiumSigningPrivateKeyPem),
-    });
+    return json(res, 200, { ok: true });
   }
 
   if (req.method === "GET" && url.pathname === "/api/session") {
@@ -1154,6 +1179,9 @@ async function handleApi(req, res, url) {
     const payload = req.method === "POST" ? await readJson(req) : {};
     const channel = String(url.searchParams.get("channel") || payload.channel || "stable").slice(0, 20);
     const currentVersion = String(url.searchParams.get("current_version") || payload.current_version || payload.app_version || "");
+    if (!isReleaseRequestAllowed(req, channel)) {
+      return json(res, 403, { error: "release_channel_requires_authentication" });
+    }
     return json(res, 200, latestReleasePayload(channel, currentVersion));
   }
 
@@ -1277,7 +1305,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/stripe/webhook") {
-    const rawBody = await readBody(req);
+    const rawBody = await readBody(req, 1024 * 1024);
     verifyStripeSignature(rawBody, req.headers["stripe-signature"]);
     let event;
     try {
@@ -1349,12 +1377,14 @@ async function handleApi(req, res, url) {
     const appVersion = String(payload.app_version || "unknown").trim().slice(0, 40);
     const channel = String(payload.channel || "stable").trim().slice(0, 20);
     if (!licenseKey || !deviceId) return json(res, 400, { error: "license_key_and_device_id_required" });
+    requireNotLocked("premiumVerify", [clientIp(req)]);
     requireNotLocked("premiumVerify", [licenseKey, clientIp(req)]);
     const license = db
       .prepare("SELECT licenses.*, organizations.name AS organization_name FROM licenses JOIN organizations ON organizations.id = licenses.organization_id WHERE licenses.license_key = ?")
       .get(licenseKey);
     if (!license || license.status !== "active") {
       recordFailure("premiumVerify", [licenseKey, clientIp(req)]);
+      recordFailure("premiumVerify", [clientIp(req)]);
       return json(res, 403, { error: "license_inactive_or_unknown" });
     }
     const existing = db.prepare("SELECT * FROM activations WHERE license_id = ? AND device_id = ?").get(license.id, deviceId);
@@ -1380,6 +1410,7 @@ async function handleApi(req, res, url) {
       checked_at: nowIso(),
     };
     clearFailures("premiumVerify", [licenseKey, clientIp(req)]);
+    clearFailures("premiumVerify", [clientIp(req)]);
     return json(res, 200, { entitlement, signature: signPayload(entitlement) });
   }
 
@@ -1390,13 +1421,16 @@ async function handleApi(req, res, url) {
     const requestedChannel = String(payload.channel || "stable").trim().toLowerCase();
     const channel = requestedChannel === "beta" ? "beta" : "stable";
     if (!licenseKey) return json(res, 400, { error: "license_key_required" });
+    requireNotLocked("consoleLookup", [clientIp(req)]);
     requireNotLocked("consoleLookup", [licenseKey, clientIp(req)]);
     const data = resolveLicenseForConsole(licenseKey);
     if (!data || data.license.status !== "active" || isExpiredEntitlement(data.license.entitlement_expires_at)) {
       recordFailure("consoleLookup", [licenseKey, clientIp(req)]);
+      recordFailure("consoleLookup", [clientIp(req)]);
       return json(res, 404, { error: "license_inactive_or_unknown" });
     }
     clearFailures("consoleLookup", [licenseKey, clientIp(req)]);
+    clearFailures("consoleLookup", [clientIp(req)]);
     data.channel = channel;
     if (data.license.channel !== channel) {
       const releaseByChannel = db
@@ -1566,12 +1600,20 @@ async function handleApi(req, res, url) {
     if (upload?.data?.length) {
       const safeVersion = sanitizeReleasePart(version);
       const safeChannel = sanitizeReleasePart(channel);
-      const fileName = `NovaSentinelSetup-${safeVersion}-${safeChannel}.exe`;
+      const fileName = `NovaSentinelSetup-${safeVersion}-${safeChannel}-${randomToken(8)}.exe`;
       installerPath = path.join(releaseUploadDir, fileName);
       fs.writeFileSync(installerPath, upload.data);
       sha256 = crypto.createHash("sha256").update(upload.data).digest("hex");
       sizeBytes = upload.data.length;
       installerUrl = `/release-downloads/${encodeURIComponent(fileName)}`;
+    } else {
+      const parsed = parseGitHubReleaseAssetUrl(installerUrl);
+      if (!parsed) return json(res, 400, { error: "github_release_asset_url_required" });
+      const remote = await hashRemoteAsset(parsed.downloadUrl);
+      if (sha256 && sha256 !== remote.sha256) return json(res, 400, { error: "sha256_mismatch" });
+      sha256 = remote.sha256;
+      sizeBytes = remote.size_bytes;
+      installerUrl = parsed.downloadUrl;
     }
     if (!installerUrl) return json(res, 400, { error: "installer_required" });
     if (!sha256 || !/^[0-9a-f]{64}$/.test(sha256)) return json(res, 400, { error: "sha256_required" });
@@ -1725,7 +1767,18 @@ function serveStatic(req, res, url) {
       res.end("Not found");
       return;
     }
-    serveFile(res, path.join(releaseUploadDir, fileName));
+    const resolvedReleasePath = path.join(releaseUploadDir, fileName);
+    const releaseRow = db
+      .prepare(
+        "SELECT channel FROM releases WHERE installer_path = ? OR installer_url = ? ORDER BY id DESC LIMIT 1",
+      )
+      .get(resolvedReleasePath, `/release-downloads/${encodeURIComponent(fileName)}`);
+    if (releaseRow && !isReleaseRequestAllowed(req, releaseRow.channel || "stable")) {
+      res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not found");
+      return;
+    }
+    serveFile(res, resolvedReleasePath);
     return;
   }
   let requestPath;
@@ -1766,6 +1819,11 @@ function serveStatic(req, res, url) {
   let servedPath = resolved;
   if (fs.existsSync(servedPath) && fs.statSync(servedPath).isDirectory()) servedPath = path.join(servedPath, "index.html");
   if (!fs.existsSync(servedPath) || !fs.statSync(servedPath).isFile()) {
+    res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+    return;
+  }
+  if (!allowedPublicStaticExtensions.has(path.extname(servedPath).toLowerCase())) {
     res.writeHead(404, { ...securityHeaders, "Content-Type": "text/plain; charset=utf-8" });
     res.end("Not found");
     return;
@@ -1830,7 +1888,7 @@ const server = http.createServer(async (req, res) => {
     }
     json(res, statusCode, {
       error: error.code || (statusCode >= 500 ? "server_error" : "request_error"),
-      message: error.message,
+      message: statusCode >= 500 ? "Internal server error." : error.message,
       ...(error.retryAfter ? { retry_after: Math.ceil(error.retryAfter) } : {}),
     });
   }

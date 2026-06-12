@@ -20,7 +20,7 @@ function loadConfig() {
     const parsed = JSON.parse(window.localStorage.getItem(CONFIG_KEY) || "{}");
     return {
       cloudUrl: typeof parsed.cloudUrl === "string" ? parsed.cloudUrl : "",
-      organizationKey: typeof parsed.organizationKey === "string" ? parsed.organizationKey : "",
+      organizationKey: "",
       installerUrl: typeof parsed.installerUrl === "string" ? parsed.installerUrl : "",
       installerSha256: typeof parsed.installerSha256 === "string" ? parsed.installerSha256 : "",
       groupName: typeof parsed.groupName === "string" ? parsed.groupName : "default",
@@ -43,7 +43,8 @@ function validSha256(value) {
 }
 
 function saveConfig() {
-  window.localStorage.setItem(CONFIG_KEY, JSON.stringify(state.config));
+  const { organizationKey: _organizationKey, ...storedConfig } = state.config;
+  window.localStorage.setItem(CONFIG_KEY, JSON.stringify(storedConfig));
 }
 
 function escapeHtml(value) {
@@ -59,10 +60,15 @@ function fileSafeName(value) {
   return String(value || "default").replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "") || "default";
 }
 
-function isHttpUrl(value) {
+function isLoopbackHost(hostname) {
+  const normalized = String(hostname || "").trim().toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
+}
+
+function isAllowedUrl(value) {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === "https:" || parsed.protocol === "http:";
+    return parsed.protocol === "https:" || (parsed.protocol === "http:" && isLoopbackHost(parsed.hostname));
   } catch {
     return false;
   }
@@ -78,8 +84,8 @@ function hasDeploymentConfig(mode = state.config.deploymentMode || "install") {
   return Boolean(
     state.config.installerUrl
       && validSha256(state.config.installerSha256)
-      && isHttpUrl(state.config.cloudUrl)
-      && isHttpUrl(state.config.installerUrl)
+      && isAllowedUrl(state.config.cloudUrl)
+      && isAllowedUrl(state.config.installerUrl)
   );
 }
 
@@ -167,11 +173,14 @@ function deploymentScript() {
     ...download,
     "$target = Join-Path $env:ProgramData 'NovaSentinel'",
     "New-Item -ItemType Directory -Force -Path $target | Out-Null",
+    "icacls $target /inheritance:r /grant:r 'Administrators:(OI)(CI)F' 'SYSTEM:(OI)(CI)F' | Out-Null",
     "$configPath = Join-Path $target 'premium_deployment.json'",
     "@'",
     payload,
     "'@ | Set-Content -LiteralPath $configPath -Encoding UTF8",
-    shouldInstall ? "$installer = Join-Path $env:TEMP 'NovaSentinel-Setup.exe'" : "# Preconfiguration mode: installer download skipped.",
+    shouldInstall ? "$installerUri = [Uri]$installerUrl" : "",
+    shouldInstall ? "if ($installerUri.Scheme -ne 'https' -and $installerUri.Host -notin @('127.0.0.1','localhost','::1')) { Write-Error 'URL installateur non securisee.'; exit 1 }" : "",
+    shouldInstall ? "$installer = Join-Path $env:ProgramData 'NovaSentinel\\NovaSentinel-Setup.exe'" : "# Preconfiguration mode: installer download skipped.",
     shouldInstall ? "$expectedSha256 = $installerSha256.ToLower()" : "",
     shouldInstall ? "Invoke-WebRequest -Uri $installerUrl -OutFile $installer -UseBasicParsing" : "",
     shouldInstall ? "$actualSha256 = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLower()" : "",
@@ -385,7 +394,7 @@ function renderLicenses() {
 }
 
 function renderPackages() {
-  const ready = state.config.cloudUrl && state.config.organizationKey && isHttpUrl(state.config.cloudUrl);
+  const ready = state.config.cloudUrl && state.config.organizationKey && isAllowedUrl(state.config.cloudUrl);
   return `
     <div class="page-heading">
       <div>
@@ -478,7 +487,7 @@ function updateConfigFromForm(form) {
 }
 
 async function testCloudConnection() {
-  if (!state.config.cloudUrl || !isHttpUrl(state.config.cloudUrl)) {
+  if (!state.config.cloudUrl || !isAllowedUrl(state.config.cloudUrl)) {
     state.cloud.ok = false;
     state.cloud.message = t("connectionFailed", state.language);
     showToast(state.cloud.message);
@@ -498,7 +507,7 @@ async function testCloudConnection() {
 }
 
 async function loadLicenseInfo(fromCloudInstaller = false) {
-  if (!state.config.cloudUrl || !isHttpUrl(state.config.cloudUrl)) {
+  if (!state.config.cloudUrl || !isAllowedUrl(state.config.cloudUrl)) {
     showToast(t("connectionFailed", state.language));
     return;
   }
