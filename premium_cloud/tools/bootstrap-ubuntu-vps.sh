@@ -82,6 +82,18 @@ server {
 
     client_max_body_size 350m;
 
+    location ~ /\.(?!well-known/) {
+        return 404;
+    }
+
+    location ~* \.(env|bak|db|sqlite|sqlite3|pem|key|log|old|orig|save|swp)$ {
+        return 404;
+    }
+
+    location ~* ^/(data|backups|release_uploads|node_modules|\.git)(/|$) {
+        return 404;
+    }
+
     location / {
         proxy_pass http://$HOST:$PORT;
         proxy_http_version 1.1;
