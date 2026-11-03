@@ -187,9 +187,11 @@ def test_ransomware_guard_persists_explainable_incident_and_recovery(tmp_path: P
     assert len(incidents) == 1
     incident = incidents[0]
     assert incident["reason"] == "ransomware_burst"
-    assert incident["status"] == "contained"
-    assert incident["actions"] == ["panic_mode_requested"]
-    assert [step["step"] for step in incident["timeline"]] == ["signal", "recovery", "scoring", "containment"]
+    assert incident["status"] == "observed"
+    assert incident["severity"] == "warning"
+    assert incident["actions"] == ["recovery_evidence_preserved"]
+    assert [step["step"] for step in incident["timeline"]] == ["signal", "recovery", "scoring"]
+    assert emergency_calls == []
     assert incident["behavior_model"] == ransomware_guard_module.BEHAVIOR_MODEL_VERSION
     assert incident["behavior_score"] >= 80
     assert incident["confidence"] == "high"
@@ -200,9 +202,7 @@ def test_ransomware_guard_persists_explainable_incident_and_recovery(tmp_path: P
     assert len(incident["related_paths"]) == ransomware_guard_module.BURST_THRESHOLD
     assert len(incident["recovery_files"]) == ransomware_guard_module.BURST_THRESHOLD
     assert recovery_dir.exists()
-    assert any(event.title == "Ransomware-like modification burst" for event in events)
-    assert len(emergency_calls) == 1
-    assert emergency_calls[0][1] == "ransomware_burst"
+    assert any(event.title == "Document modification burst observed" for event in events)
 
 
 def test_browser_like_created_burst_preserves_evidence_without_containment(tmp_path: Path, monkeypatch):
@@ -259,6 +259,15 @@ def test_manual_panic_creates_incident(tmp_path: Path, monkeypatch):
     assert incidents_path.exists()
     assert any(event.title == "Manual panic mode" for event in events)
     assert emergency_calls == [("", "manual_panic", [])]
+
+
+def test_verified_canary_change_still_requests_containment(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(ransomware_guard_module, "INCIDENTS_FILE", tmp_path / "incidents.json")
+    calls = []
+    guard = RansomwareGuard(AppSettings(), lambda event: None, lambda *args: calls.append(args))
+    guard.record_canary_touch(str(tmp_path / "test.canary"))
+    assert calls[0][1] == "canary_touched"
+    assert guard.list_incidents()[0]["status"] == "contained"
 
 
 def test_manual_panic_records_recent_paths_without_targeting_them(tmp_path: Path, monkeypatch):

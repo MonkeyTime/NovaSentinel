@@ -39,6 +39,10 @@ def _is_same_or_child(path: Path, root: Path) -> bool:
 
 
 def is_app_owned_path(path: Path) -> bool:
+    # Packaged Windows apps can virtualize a file without virtualizing its
+    # parent directory. Recognize our lexical runtime path before resolving it.
+    if Path(os.path.abspath(path)).is_relative_to(Path(os.path.abspath(config.STATE_DIR))):
+        return True
     return _is_same_or_child(path, config.STATE_DIR)
 
 
@@ -66,15 +70,12 @@ def is_runtime_state_path(path: Path) -> bool:
 def is_excluded(path: Path, exclusions: list[str], inclusions: list[str] | None = None) -> bool:
     if is_runtime_state_path(path):
         return True
-    lowered = str(path).lower()
     for exclusion in exclusions:
-        exclusion_lowered = exclusion.lower()
-        if not lowered.startswith(exclusion_lowered):
+        if not _is_same_or_child(path, Path(exclusion)):
             continue
         if inclusions:
             for inclusion in inclusions:
-                inclusion_lowered = inclusion.lower()
-                if inclusion_lowered.startswith(exclusion_lowered) and lowered.startswith(inclusion_lowered):
+                if _is_same_or_child(Path(inclusion), Path(exclusion)) and _is_same_or_child(path, Path(inclusion)):
                     return False
         return True
     return False
@@ -128,7 +129,7 @@ def is_temp_path(path: Path) -> bool:
         resolved = path.resolve()
     except OSError:
         resolved = path
-    return any(str(resolved).lower().startswith(str(root).lower()) for root in temp_roots())
+    return any(_is_same_or_child(resolved, root) for root in temp_roots())
 
 
 def is_read_locked(path: Path) -> tuple[bool, str]:

@@ -59,6 +59,41 @@ def test_settings_load_prunes_legacy_default_exclusions(tmp_path: Path, monkeypa
     assert custom_exclusion in settings.scan_exclusions
 
 
+def test_settings_preserve_selected_roots_and_appearance(tmp_path: Path, monkeypatch):
+    _redirect_state(monkeypatch, tmp_path / "state")
+    roots = [str(tmp_path / "only-this-folder")]
+    config.save_settings(AppSettings(scan_roots=roots, appearance_mode="dark", notify_scan_completion=True))
+    loaded = config.load_settings()
+    assert loaded.scan_roots == roots
+    assert loaded.appearance_mode == "dark"
+    assert loaded.notify_scan_completion is True
+
+
+def test_invalid_settings_types_recover_to_safe_defaults(tmp_path: Path, monkeypatch):
+    _redirect_state(monkeypatch, tmp_path / "state")
+    config.ensure_runtime_dirs()
+    config.SETTINGS_FILE.write_text(json.dumps({
+        "scan_roots": None, "scan_exclusions": [42, None, "valid"],
+        "max_file_size_mb": "unlimited", "appearance_mode": [], "language": {},
+        "realtime_enabled": "false", "notify_scan_completion": "true",
+    }), encoding="utf-8")
+    loaded = config.load_settings()
+    assert loaded.scan_exclusions == ["valid"]
+    assert loaded.max_file_size_mb == 64
+    assert loaded.appearance_mode == "light"
+    assert loaded.language == "en"
+    assert loaded.realtime_enabled is True
+    assert loaded.notify_scan_completion is False
+
+
+def test_json_wrong_shape_recovers_from_backup(tmp_path: Path, monkeypatch):
+    _redirect_state(monkeypatch, tmp_path / "state")
+    config.save_json_list(config.EVENTS_FILE, [{"title": "valid"}])
+    config.save_json_list(config.EVENTS_FILE, [{"title": "new"}])
+    config.EVENTS_FILE.write_text("{}", encoding="utf-8")
+    assert config.load_json_list(config.EVENTS_FILE) == [{"title": "valid"}]
+
+
 def test_json_write_retries_when_replace_is_temporarily_locked(tmp_path: Path, monkeypatch):
     _redirect_state(monkeypatch, tmp_path / "state")
     monkeypatch.setattr(config.time, "sleep", lambda _delay: None)

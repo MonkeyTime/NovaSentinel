@@ -1328,6 +1328,59 @@ for language, values in _PANIC_RELEASE_TRANSLATIONS.items():
     TRANSLATIONS[language].update(values)
 
 
+_APPEARANCE_TRANSLATIONS = {'en': ['Dark mode', 'Notify when a scan finishes in the background', 'Folders to scan (one per line)'], 'fr': ['Mode sombre', 'Notifier la fin des analyses en arrière-plan', 'Dossiers à analyser (un par ligne)'], 'es': ['Modo oscuro', 'Notificar al finalizar un análisis en segundo plano', 'Carpetas para analizar (una por línea)'], 'de': ['Dunkler Modus', 'Nach Hintergrundscans benachrichtigen', 'Scanordner (einer pro Zeile)'], 'it': ['Modalità scura', 'Notifica al termine delle scansioni in background', 'Cartelle da analizzare (una per riga)'], 'pt': ['Modo escuro', 'Notificar ao concluir análises em segundo plano', 'Pastas a analisar (uma por linha)'], 'ar': ['الوضع الداكن', 'إشعار عند اكتمال الفحص في الخلفية', 'مجلدات الفحص (مجلد في كل سطر)']}
+for _language, _labels in _APPEARANCE_TRANSLATIONS.items():
+    TRANSLATIONS[_language].update(dict(zip(("settings.dark_mode", "settings.notify_scan_completion", "settings.scan_folders"), _labels)))
+
+
+
+_DESKTOP_TEXT = {
+    "summary.none": "Ready when you are. Start a scan to review your files.",
+    "review.quarantine": "Quarantine selection",
+    "review.ignore": "Dismiss for this scan",
+    "review.select": "Select a file in the list first.",
+    "review.confirm": "Move this file to quarantine?\n\n{path}",
+    "review.updated": "Decision saved. The list has been updated.",
+}
+for _language in LANGUAGES:
+    TRANSLATIONS[_language].update(_DESKTOP_TEXT)
+TRANSLATIONS["en"].update({
+    "scan.threats": "Findings to review", "scan.threat_count": "{count} file(s) to review below",
+})
+TRANSLATIONS["fr"].update({
+    "summary.none": "Prêt à analyser vos fichiers, quand vous le souhaitez.",
+    "dashboard.title": "Votre espace de protection",
+    "dashboard.recent": "Activité récente",
+    "subtitle": "Une protection complémentaire, claire et discrète.",
+    "card.realtime.title": "Temps réel",
+    "card.realtime.body": "Surveillance des dossiers à risque, en complément de Microsoft Defender.",
+    "card.ransomware.body": "Vérification des fichiers leurres et suivi des modifications inhabituelles.",
+    "card.trust.title": "Transparence",
+    "card.trust.body": "Des indices expliqués et des décisions que vous gardez en main.",
+    "background_status": "Protection en arrière-plan",
+    "nav.scan": "Centre d’analyse", "nav.forensics": "Investigation", "nav.events": "Événements",
+    "nav.settings": "Paramètres", "nav.trust": "Centre de confiance",
+    "scan.title": "Centre d’analyse", "scan.stop": "Arrêter l’analyse", "scan.ready": "Prêt",
+    "scan.threats": "Éléments à vérifier", "scan.threat_count": "{count} fichier(s) à vérifier ci-dessous",
+    "settings.title": "Paramètres", "settings.realtime": "Protection des fichiers en temps réel",
+    "settings.process": "Surveillance du lancement des applications",
+    "settings.ransomware": "Surveillance des fichiers leurres et des rafales",
+    "review.quarantine": "Mettre en quarantaine", "review.ignore": "Ignorer pour cette analyse",
+    "review.select": "Sélectionnez d’abord un fichier dans la liste.",
+    "review.confirm": "Déplacer ce fichier en quarantaine ?\n\n{path}",
+    "review.updated": "Décision enregistrée. La liste a été actualisée.",
+    "ransomware.body": "Les rafales sont conservées pour vérification. Une altération vérifiée d’un fichier leurre peut déclencher le confinement. Les copies sont des instantanés observés, pas une sauvegarde garantie avant modification.",
+})
+
+
+TRANSLATIONS["fr"].update({
+    "heading.time": "Date", "heading.severity": "Gravité", "heading.path": "Emplacement",
+    "heading.action": "Décision", "heading.level": "Niveau", "heading.title": "Événement",
+    "scan.placeholder": "Chemin d’un fichier ou d’un dossier",
+    "quarantine.restore": "Restaurer le fichier", "quarantine.delete": "Supprimer définitivement",
+    "settings.save": "Enregistrer les préférences",
+})
+
 def normalize_language(language: str | None) -> str:
     if language in LANGUAGES:
         return str(language)

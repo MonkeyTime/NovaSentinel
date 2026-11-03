@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import time
+import threading
 from collections import Counter
 from collections import deque
 from collections.abc import Callable
@@ -40,6 +41,8 @@ CONTAINMENT_SCORE_THRESHOLD = 90
 PANIC_COOLDOWN_SECONDS = 15
 MAX_RECOVERY_FILE_SIZE = 25 * 1024 * 1024
 MAX_INCIDENT_RECOVERY_FILES = 24
+MAX_RECOVERY_CANDIDATES = 256
+MAX_RECOVERY_BYTES = 256 * 1024 * 1024
 BEHAVIOR_MODEL_VERSION = "ransomware-behavior-score-v2"
 
 
@@ -57,8 +60,13 @@ class RansomwareGuard:
         self.recovery_candidates: dict[str, dict] = {}
         self.last_panic_trigger_at = 0.0
         self.incidents: list[dict] = load_json_list(INCIDENTS_FILE)
+        self.activity_lock = threading.RLock()
 
     def record_file_activity(self, path: str, event_kind: str = "modified") -> None:
+        with self.activity_lock:
+            self._record_file_activity(path, event_kind)
+
+    def _record_file_activity(self, path: str, event_kind: str) -> None:
         if not self.settings.ransomware_guard_enabled:
             return
         target = Path(path)
@@ -98,6 +106,10 @@ class RansomwareGuard:
                 self.emergency_callback(str(target), "ransomware_burst", recent_paths)
 
     def record_canary_touch(self, path: str) -> None:
+        with self.activity_lock:
+            self._record_canary_touch(path)
+
+    def _record_canary_touch(self, path: str) -> None:
         if not self.settings.ransomware_guard_enabled:
             return
         incident = self._create_incident(
@@ -119,6 +131,10 @@ class RansomwareGuard:
         self.emergency_callback(path, "canary_touched", [path])
 
     def manual_panic(self) -> dict:
+        with self.activity_lock:
+            return self._manual_panic()
+
+    def _manual_panic(self) -> dict:
         incident = self._create_incident(
             reason="manual_panic",
             trigger_path="",
@@ -138,8 +154,8 @@ class RansomwareGuard:
         return incident
 
     def list_incidents(self) -> list[dict]:
-        self.incidents = load_json_list(INCIDENTS_FILE)
-        return list(self.incidents[-120:])
+        with self.activity_lock:
+            return list(self.incidents[-120:])
 
     def refresh_settings(self, settings: AppSettings) -> None:
         self.settings = settings
@@ -152,6 +168,8 @@ class RansomwareGuard:
         return paths
 
     def _capture_recovery_candidate(self, path: Path) -> None:
+        if len(self.recovery_candidates) >= MAX_RECOVERY_CANDIDATES:
+            return
         if str(path) in self.recovery_candidates:
             return
         if not path.exists() or path.is_dir():
@@ -161,6 +179,12 @@ class RansomwareGuard:
         except OSError:
             return
         if size > MAX_RECOVERY_FILE_SIZE:
+            return
+        try:
+            vault_size = sum(item.stat().st_size for item in RECOVERY_DIR.iterdir() if item.is_file()) if RECOVERY_DIR.exists() else 0
+        except OSError:
+            return
+        if vault_size + size > MAX_RECOVERY_BYTES:
             return
         recovery_path = self._recovery_path_for(path)
         try:
@@ -213,7 +237,7 @@ class RansomwareGuard:
             "id": incident_id,
             "timestamp": timestamp,
             "reason": reason,
-            "severity": "critical",
+            "severity": "critical" if containment else "warning",
             "behavior_model": BEHAVIOR_MODEL_VERSION,
             "behavior_score": behavior["score"],
             "confidence": behavior["confidence"],
@@ -242,16 +266,18 @@ class RansomwareGuard:
         recovery_files: list[dict],
     ) -> dict:
         paths = [Path(path) for path in related_paths if path]
+        now = time.time()
+        recent_activity = [item for item in self.activity if now - item[0] <= BURST_WINDOW_SECONDS]
         directories = {str(path.parent).lower() for path in paths}
         extensions = Counter(path.suffix.lower() or "<none>" for path in paths)
         timestamps = [
             stamp
-            for stamp, activity_path, _event_kind in self.activity
+            for stamp, activity_path, _event_kind in recent_activity
             if activity_path in related_paths
         ]
         event_kinds = Counter(
             event_kind
-            for _stamp, activity_path, event_kind in self.activity
+            for activity_path, event_kind in {(path, kind) for _, path, kind in recent_activity}
             if activity_path in related_paths
         )
         window_span = max(timestamps) - min(timestamps) if len(timestamps) > 1 else 0.0
@@ -328,19 +354,10 @@ class RansomwareGuard:
         return tags
 
     def _should_contain_behavior(self, reason: str, behavior: dict) -> bool:
-        if reason in {"canary_touched", "manual_panic"}:
-            return True
-        signals = behavior["signals"]
-        score = int(behavior["score"])
-        directory_count = int(signals["directory_count"])
-        extension_count = int(signals["extension_count"])
-        event_kinds = signals.get("event_kinds", {})
-        modified_count = int(event_kinds.get("modified", 0)) + int(event_kinds.get("moved", 0))
-        if modified_count < BURST_THRESHOLD:
-            return False
-        if score < CONTAINMENT_SCORE_THRESHOLD:
-            return False
-        return directory_count >= 2 or extension_count >= 3
+        # Watchdog supplies no writer identity or proof of encryption. A sync,
+        # photo export or backup can produce the same burst, even at score 100.
+        # Preserve the incident for review; verified canaries remain actionable.
+        return reason in {"canary_touched", "manual_panic"}
 
     def _protected_root_hits(self, related_paths: list[str]) -> int:
         roots = [str(Path(root)).lower() for root in self.settings.scan_roots if root]

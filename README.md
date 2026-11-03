@@ -4,7 +4,7 @@ NovaSentinel is an original Windows 11 antivirus built as a modern, explainable 
 
 ## What it includes
 
-- Background Windows app launched with `pythonw` through [`launch_novaguard.pyw`](C:\Users\admin\Documents\antivirus\launch_novaguard.pyw)
+- Background Windows app launched with `pythonw` through [`launch_novaguard.pyw`](launch_novaguard.pyw)
 - Tray icon with open, quick-scan, protection toggle, and exit actions
 - Windows 11-style desktop interface built with `customtkinter`
 - Hybrid file scoring:
@@ -60,6 +60,10 @@ Set-ExecutionPolicy -Scope Process Bypass
 ```powershell
 .venv\Scripts\pythonw.exe .\launch_novaguard.pyw
 ```
+
+The desktop now starts in light mode. Use the top bar's **Dark mode** switch to change and save the appearance. Its LevelUp-inspired workspace includes a compact overview, grouped expert tools, searchable activity and a file history tab. Scan results show one row per file, with detailed evidence on selection. Scan completion dialogs have been replaced by optional background notifications in Settings. Static-only findings and generic document modification bursts are retained for review instead of automatically isolating applications.
+
+See [desktop analysis and changes (French)](docs/ameliorations-desktop.md) for the detection policy, reliability changes, validation, and practical limits.
 
 ## Build an executable
 

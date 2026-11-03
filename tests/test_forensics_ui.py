@@ -60,7 +60,7 @@ def test_forensic_counts_and_translations_exist():
     )
 
     assert counts == (1, 2, 1, 3)
-    assert tr("fr", "nav.forensics") == "Forensic"
+    assert tr("fr", "nav.forensics") == "Investigation"
     assert tr("en", "forensics.title") == "Forensics"
     assert tr("fr", "heading.attack") == "ATT&CK"
 

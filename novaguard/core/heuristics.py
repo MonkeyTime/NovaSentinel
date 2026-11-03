@@ -47,6 +47,7 @@ SUSPICIOUS_STRINGS = {
     "disableantispyware": 20,
     "eicar-standard-antivirus-test-file": 95,
 }
+EICAR_TEST_SIGNATURE = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
 
 SUSPICIOUS_IMPORTS = {
     "VirtualAlloc": 10,
@@ -193,7 +194,6 @@ LOCAL_IOC_MAX_SCORE = 100
 LOCAL_IOC_FEATURE = "local_ioc_lookup"
 HARD_MALICIOUS_CATEGORIES = {
     "content",
-    "packed-section-name",
 }
 _SIGNATURE_CACHE: dict[tuple[str, int, int], str] = {}
 _LOCAL_IOC_CACHE: dict[str, object] = {
@@ -227,7 +227,8 @@ def is_runtime_state_candidate(path: Path) -> bool:
         or _is_json_temp_name(name, base_name)
         for base_name in RUNTIME_STATE_BASE_FILENAMES
     )
-    if is_state_file and _is_same_or_child(path, config.STATE_DIR):
+    lexical_child = Path(os.path.abspath(path)).is_relative_to(Path(os.path.abspath(config.STATE_DIR)))
+    if is_state_file and (lexical_child or _is_same_or_child(path, config.STATE_DIR)):
         return True
     return False
 
@@ -292,7 +293,7 @@ def _powershell_signature_subject(path: Path) -> str:
         stat = path.stat()
     except OSError:
         return ""
-    cache_key = (str(path).casefold(), int(stat.st_mtime), int(stat.st_size))
+    cache_key = (str(path).casefold(), stat.st_mtime_ns, stat.st_size)
     if cache_key in _SIGNATURE_CACHE:
         return _SIGNATURE_CACHE[cache_key]
     env = dict(os.environ)
@@ -322,6 +323,8 @@ def _powershell_signature_subject(path: Path) -> str:
         subject = ""
     else:
         subject = result.stdout.strip() if result.returncode == 0 else ""
+    if len(_SIGNATURE_CACHE) >= 2048:
+        _SIGNATURE_CACHE.clear()
     _SIGNATURE_CACHE[cache_key] = subject
     return subject
 
@@ -339,7 +342,7 @@ def trusted_publisher_subject(path: Path) -> str:
 
 
 def apply_trusted_publisher_cap(path: Path, score: int, hits: list[DetectionHit]) -> int:
-    if score < 72:
+    if score < 48:
         return score
     if any(hit.category in HARD_MALICIOUS_CATEGORIES for hit in hits):
         return score
@@ -502,7 +505,7 @@ def _apply_local_ioc_result(path: Path, sha256: str, features: set[str], hits: l
         f"sha256:{sha256}",
         source="local-intel",
     )
-    return True
+    return verdict == "malicious"
 
 
 def is_benign_python_artifact(path: Path) -> bool:
@@ -519,6 +522,8 @@ def analyze_text_signals(path: Path, data: bytes, hits: list[DetectionHit]) -> N
     if _looks_like_benign_source_code(path, lowered):
         return
     for token, score in SUSPICIOUS_STRINGS.items():
+        if token == "eicar-standard-antivirus-test-file" and not data.startswith(EICAR_TEST_SIGNATURE):
+            continue
         if token.encode("utf-8") in lowered:
             add_hit(
                 hits,
@@ -527,6 +532,33 @@ def analyze_text_signals(path: Path, data: bytes, hits: list[DetectionHit]) -> N
                 "Embedded commands match common malicious or ransomware tradecraft.",
                 token,
             )
+
+
+def score_evidence(hits: list[DetectionHit]) -> int:
+    """Bound correlated static signals; imported capabilities are not execution."""
+    groups = {"context": 0, "api": 0, "structure": 0, "entropy": 0, "content": 0}
+    for hit in hits:
+        if hit.category in {"extension", "location", "size"}:
+            group = "context"
+        elif hit.category in {"api-behavior", "api-intent"}:
+            group = "api"
+        elif hit.category in {"entropy", "packed-section"}:
+            group = "entropy"
+        elif hit.category in {"content", "local-ioc-hit"}:
+            group = "content"
+        else:
+            group = "structure"
+        groups[group] += max(0, hit.score)
+    return min(100, min(groups["context"], 28) + min(groups["api"], 32)
+               + min(groups["structure"], 24) + min(groups["entropy"], 18) + groups["content"])
+
+
+def has_actionable_content(hits: list[DetectionHit]) -> bool:
+    content = [hit for hit in hits if hit.category == "content"]
+    if any(hit.evidence == "eicar-standard-antivirus-test-file" for hit in content):
+        return True
+    # Require multiple command indicators; a lone tool name is never enough.
+    return len({hit.evidence for hit in content}) >= 2 and sum(hit.score for hit in content) >= 40
 
 
 def analyze_location(path: Path, hits: list[DetectionHit]) -> None:
@@ -687,7 +719,8 @@ def analyze_file(
     if is_benign_python_artifact(target):
         return None
     try:
-        size = target.stat().st_size
+        initial_stat = target.stat()
+        size = initial_stat.st_size
     except OSError:
         return None
     if size > max_file_size_mb * 1024 * 1024:
@@ -709,8 +742,16 @@ def analyze_file(
     if size < 12_000 and target.suffix.lower() in {".exe", ".dll", ".scr"}:
         add_hit(hits, "size", 10, "Very small executable stubs are often used by downloaders or loaders.", str(size))
 
-    score = min(sum(hit.score for hit in hits), 100)
-    score = apply_trusted_publisher_cap(target, score, hits)
+    score = score_evidence(hits)
+    if known_ioc_match:
+        score = max(score, 72)
+    else:
+        score = apply_trusted_publisher_cap(target, score, hits)
+    if score >= 72 and not known_ioc_match and not has_actionable_content(hits):
+        score = 71
+        add_hit(hits, "review-policy", 0,
+                "Static capabilities alone require review; automatic isolation needs corroborating evidence.",
+                "No corroborated command content or known malicious hash", source="decision-policy")
     severity, malicious = classify_severity(score)
 
     if not sha256:
@@ -718,6 +759,12 @@ def analyze_file(
             sha256 = compute_sha256(target)
         except OSError:
             sha256 = ""
+    try:
+        final_stat = target.stat()
+    except OSError:
+        return None
+    if (initial_stat.st_mtime_ns, initial_stat.st_size) != (final_stat.st_mtime_ns, final_stat.st_size):
+        return None
 
     result = ScanResult(
         path=str(target),

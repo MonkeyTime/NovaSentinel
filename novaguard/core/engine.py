@@ -170,9 +170,15 @@ class NovaSentinelEngine:
             self.process_guard.premium_features = set(self._premium_features)
 
     def update_settings(self, settings: AppSettings) -> None:
+        roots_changed = self.settings.scan_roots != settings.scan_roots
+        realtime_running = bool(getattr(getattr(self, "realtime", None), "observers", []))
         self.settings = settings
         save_settings(settings)
         self.refresh_runtime()
+        if roots_changed and realtime_running:
+            self.realtime.stop()
+            self.realtime.file_versions.clear()
+            self.realtime.start()
         self.record_event(
             EventRecord(
                 timestamp=datetime.now().isoformat(timespec="seconds"),
@@ -188,6 +194,7 @@ class NovaSentinelEngine:
 
     def get_snapshot(self) -> dict:
         self._maybe_refresh_telemetry()
+        incidents = self.ransomware_guard.list_incidents()
         with self.status_lock:
             with self.telemetry_lock:
                 telemetry = dict(self.telemetry_status)
@@ -198,7 +205,7 @@ class NovaSentinelEngine:
                 "quarantine": self.quarantine.list_entries(),
                 "settings": self.settings,
                 "current_scan_threats": list(self.current_scan_threats),
-                "incidents": self.ransomware_guard.list_incidents(),
+                "incidents": incidents,
                 "telemetry": telemetry,
             }
 
@@ -223,15 +230,17 @@ class NovaSentinelEngine:
             result.xai = explain_scan_result(result)
         self._enrich_post_alert(result, "result")
         item = result.to_dict()
-        self.history.append(item)
-        self.history = self.history[-400:]
-        save_json_list(HISTORY_FILE, self.history)
+        with self.status_lock:
+            self.history.append(item)
+            self.history = self.history[-400:]
+            save_json_list(HISTORY_FILE, self.history)
 
     def record_event(self, event: EventRecord) -> None:
         item = event.to_dict()
-        self.events.append(item)
-        self.events = self.events[-500:]
-        save_json_list(EVENTS_FILE, self.events)
+        with self.status_lock:
+            self.events.append(item)
+            self.events = self.events[-500:]
+            save_json_list(EVENTS_FILE, self.events)
 
     def quick_scan(self) -> None:
         roots = [root for root in self.settings.scan_roots if Path(root).exists()]
@@ -501,14 +510,26 @@ class NovaSentinelEngine:
         target = Path(path)
         if not target.exists() or target.is_dir():
             return None
-        if not sha256:
-            try:
-                sha256 = calculate_file_sha256(target)
-            except OSError:
-                sha256 = ""
+        try:
+            current_hash = calculate_file_sha256(target)
+        except OSError:
+            return None
+        if sha256 and current_hash != sha256:
+            self.record_event(EventRecord(
+                timestamp=datetime.now().isoformat(timespec="seconds"), level="warning",
+                title="File changed after scan", description="Isolation deferred: scan the new file contents before acting.", path=path,
+            ))
+            return None
+        sha256 = current_hash
         allow_system_file = False
         if is_system_managed_path(target):
             decision = self.quarantine.remembered_system_decision(path, sha256)
+            if decision is None and reason in {"realtime_protection", "process_guard"}:
+                self.record_event(EventRecord(
+                    timestamp=datetime.now().isoformat(timespec="seconds"), level="warning",
+                    title="System file requires review", description="Background protection left the system file in place for manual review.", path=path,
+                ))
+                return None
             if decision is None:
                 approved = self._request_system_quarantine_decision(path, reason, score, sha256)
                 decision = SYSTEM_DECISION_ALLOW if approved else SYSTEM_DECISION_DENY
@@ -617,6 +638,7 @@ class NovaSentinelEngine:
         if result.malicious:
             with self.status_lock:
                 self.state["threats_found"] += 1
+        if result.malicious or result.score >= 48:
             self._track_current_scan_threat(result)
 
     def _enrich_post_alert(self, result: ScanResult, reason: str) -> None:

@@ -62,6 +62,8 @@ class AppSettings:
     recent_scan_target: str = ""
     window_geometry: str = ""
     language: str = "en"
+    appearance_mode: str = "light"
+    notify_scan_completion: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

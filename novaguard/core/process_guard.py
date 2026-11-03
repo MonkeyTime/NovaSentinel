@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import re
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -10,7 +11,7 @@ import psutil
 
 from novaguard.config import STATE_DIR
 from novaguard.core.lockdown import FREEZE_DURATION_SECONDS, FolderLockdownManager
-from novaguard.core.scanner import is_temp_path
+from novaguard.core.scanner import is_temp_path, is_excluded
 from novaguard.core.heuristics import analyze_file, classify_severity
 from novaguard.models import AppSettings, DetectionHit, EventRecord, ScanResult
 
@@ -19,18 +20,22 @@ EventCallback = Callable[[EventRecord], None]
 ResultCallback = Callable[[ScanResult], None]
 
 CMDLINE_MARKERS = {
-    "powershell": 12,
     "-enc": 26,
+    "-encodedcommand": 26,
     "frombase64string": 18,
     "downloadstring": 18,
     "invoke-expression": 18,
-    "vssadmin": 24,
-    "bcdedit": 16,
-    "regsvr32": 14,
-    "rundll32": 12,
-    "mshta": 18,
-    "certutil": 16,
+    "vssadmin delete shadows": 28,
+    "bcdedit /set": 16,
+    "certutil -urlcache": 20,
 }
+
+
+def command_line_signals(cmdline: str) -> tuple[int, list[str]]:
+    lowered = cmdline.casefold()
+    evidence = [token for token in CMDLINE_MARKERS
+                if re.search(r"(?<![\w-])" + re.escape(token) + r"(?![\w-])", lowered)]
+    return sum(CMDLINE_MARKERS[token] for token in evidence), evidence
 
 WSL_PROCESS_NAMES = {
     "wsl.exe",
@@ -80,7 +85,7 @@ class ProcessGuard:
         self.premium_features = set(premium_features or [])
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
-        self.seen_pids: set[int] = set()
+        self.seen_pids: set[tuple[int, float | None]] = set()
         self.suspicious_processes: dict[int, dict] = {}
         self.panic_mode_until = 0.0
         self.lockdown = lockdown_manager or FolderLockdownManager(on_event)
@@ -156,87 +161,107 @@ class ProcessGuard:
     def _run(self) -> None:
         while not self.stop_event.is_set():
             if not self.settings.process_guard_enabled:
-                time.sleep(2.0)
+                self.stop_event.wait(2.0)
                 continue
-            for process in psutil.process_iter(["pid", "name", "exe", "cmdline"]):
-                pid = process.info.get("pid")
-                if not pid or pid in self.seen_pids:
-                    continue
-                self.seen_pids.add(pid)
-                exe = process.info.get("exe") or ""
-                cmdline = " ".join(process.info.get("cmdline") or [])
-                risk = 0
-                evidence: list[str] = []
-                lowered = cmdline.lower()
-                for token, score in CMDLINE_MARKERS.items():
-                    if token in lowered:
-                        risk += score
-                        evidence.append(token)
-                wsl_risk, wsl_evidence = self._wsl_behavior_risk(process.info.get("name") or "", exe, cmdline)
-                risk += wsl_risk
-                evidence.extend(wsl_evidence)
-                if not exe or not Path(exe).exists():
-                    continue
-                result = analyze_file(
-                    exe,
-                    max_file_size_mb=self.settings.max_file_size_mb,
-                    premium_features=self.premium_features,
-                )
-                if not result:
-                    continue
-                result.score = min(100, result.score + risk)
-                result.severity, result.malicious = classify_severity(result.score)
-                if evidence:
-                    result.hits.append(
-                        DetectionHit(
-                            category="command-line",
-                            score=min(risk, 30),
-                            explanation="The process command line contains markers linked to obfuscation, staging or shadow-copy tampering.",
-                            evidence=", ".join(evidence),
-                            source="behavior",
-                        )
-                    )
-                if wsl_evidence:
-                    result.hits.append(
-                        DetectionHit(
-                            category="wsl-abuse",
-                            score=min(wsl_risk, 40),
-                            explanation="WSL/Linux tooling is accessing Windows user data with command patterns commonly seen in cross-platform ransomware staging.",
-                            evidence=", ".join(wsl_evidence),
-                            source="behavior",
-                        )
-                    )
-                self.on_result(result)
-                if result.score >= 48 or evidence:
-                    self._remember_process(process, result.score, evidence)
-                if result.score >= 72:
-                    self.on_event(
-                        EventRecord(
-                            timestamp=result.scanned_at,
-                            level="warning",
-                            title="Suspicious process launch",
-                            description=f"{process.info.get('name') or 'process'} scored {result.score}/100.",
-                            path=exe,
-                        )
-                    )
-                if self._panic_mode_active() and self._should_block_in_panic(exe, result.score, risk):
-                    if self._terminate_and_quarantine(process, self.suspicious_processes.get(pid, {}), "panic_mode"):
-                        self.on_event(
-                            EventRecord(
-                                timestamp=result.scanned_at,
-                                level="critical",
-                                title="Panic mode blocked risky execution",
-                                description=f"{process.info.get('name') or 'process'} was terminated during the ransomware incident window.",
-                                path=exe,
-                            )
-                        )
-                if result.score >= 92 and self.settings.automatic_quarantine and self._should_auto_quarantine_process(exe):
+            active = set()
+            try:
+                for process in psutil.process_iter(["pid", "name", "exe", "cmdline", "create_time"]):
+                    if self.stop_event.is_set():
+                        break
+                    active.add((process.info.get("pid"), process.info.get("create_time")))
                     try:
-                        process.terminate()
+                        self._inspect_process(process)
                     except (psutil.Error, OSError):
-                        pass
-                    self.quarantine_callback(exe, "process_guard", result.score)
-            time.sleep(3.0)
+                        continue
+            except (psutil.Error, OSError):
+                pass
+            self.seen_pids.intersection_update(active)
+            active_pids = {pid for pid, _ in active}
+            self.suspicious_processes = {pid: item for pid, item in self.suspicious_processes.items() if pid in active_pids}
+            self.stop_event.wait(3.0)
+
+    def _inspect_process(self, process: psutil.Process) -> None:
+        pid = process.info.get("pid")
+        identity = (pid, process.info.get("create_time"))
+        if not pid or identity in self.seen_pids:
+            return
+        self.seen_pids.add(identity)
+        exe = process.info.get("exe") or ""
+        cmdline = " ".join(process.info.get("cmdline") or [])
+        risk, evidence = command_line_signals(cmdline)
+        wsl_risk, wsl_evidence = self._wsl_behavior_risk(process.info.get("name") or "", exe, cmdline)
+        risk += wsl_risk
+        evidence.extend(wsl_evidence)
+        if not exe or not Path(exe).exists():
+            return
+        if is_excluded(Path(exe), self.settings.scan_exclusions, self.settings.scan_roots):
+            return
+        result = analyze_file(
+            exe,
+            max_file_size_mb=self.settings.max_file_size_mb,
+            premium_features=self.premium_features,
+        )
+        if not result:
+            return
+        # Command-line suspicion concerns this launch, not the on-disk interpreter.
+        static_malicious = result.malicious
+        result.score = min(100, result.score + min(risk, 30))
+        if not static_malicious:
+            result.score = min(result.score, 71)
+        result.severity, _ = classify_severity(result.score)
+        result.malicious = static_malicious
+        if evidence:
+            result.hits.append(
+                DetectionHit(
+                    category="command-line",
+                    score=min(risk, 30),
+                    explanation="The process command line contains markers linked to obfuscation, staging or shadow-copy tampering.",
+                    evidence=", ".join(evidence),
+                    source="behavior",
+                )
+            )
+        if wsl_evidence:
+            result.hits.append(
+                DetectionHit(
+                    category="wsl-abuse",
+                    score=min(wsl_risk, 40),
+                    explanation="WSL/Linux tooling is accessing Windows user data with command patterns commonly seen in cross-platform ransomware staging.",
+                    evidence=", ".join(wsl_evidence),
+                    source="behavior",
+                )
+            )
+        result.attack = None
+        result.xai = None
+        self.on_result(result)
+        if result.score >= 48 or evidence:
+            self._remember_process(process, result.score, evidence)
+        if result.score >= 72:
+            self.on_event(
+                EventRecord(
+                    timestamp=result.scanned_at,
+                    level="warning",
+                    title="Suspicious process launch",
+                    description=f"{process.info.get('name') or 'process'} scored {result.score}/100.",
+                    path=exe,
+                )
+            )
+        if self._panic_mode_active() and self._should_block_in_panic(exe, result.score, risk):
+            if self._terminate_and_quarantine(process, self.suspicious_processes.get(pid, {}), "panic_mode"):
+                self.on_event(
+                    EventRecord(
+                        timestamp=result.scanned_at,
+                        level="critical",
+                        title="Panic mode blocked risky execution",
+                        description=f"{process.info.get('name') or 'process'} was terminated during the ransomware incident window.",
+                        path=exe,
+                    )
+                )
+        if result.malicious and result.score >= 92 and self.settings.automatic_quarantine and self._should_auto_quarantine_process(exe):
+            try:
+                process.terminate()
+            except (psutil.Error, OSError):
+                pass
+            self.quarantine_callback(exe, "process_guard", result.score)
 
     def _panic_mode_active(self) -> bool:
         return time.time() <= self.panic_mode_until
@@ -281,15 +306,13 @@ class ProcessGuard:
         if not pid or not exe:
             return None
         cmdline = " ".join(process.info.get("cmdline") or [])
-        lowered = cmdline.lower()
-        risk = sum(score for token, score in CMDLINE_MARKERS.items() if token in lowered)
+        risk, evidence = command_line_signals(cmdline)
         wsl_risk, wsl_evidence = self._wsl_behavior_risk(process.info.get("name") or "", exe, cmdline)
         risk += wsl_risk
         if self._is_user_writable_risk_path(Path(exe)):
             risk += 18
         if risk < 24:
             return None
-        evidence = [token for token in CMDLINE_MARKERS if token in lowered]
         evidence.extend(wsl_evidence)
         details = {
             "pid": pid,

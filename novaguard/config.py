@@ -34,6 +34,7 @@ PREMIUM_ENTITLEMENT_FILE = PREMIUM_DIR / "entitlement.json"
 PREMIUM_DEPLOYMENT_FILE = PREMIUM_DIR / "deployment.json"
 JSON_WRITE_RETRY_DELAYS = (0.05, 0.15, 0.35, 0.75)
 _JSON_WRITE_LOCK = threading.RLock()
+_ACL_CHECKED_AT: dict[str, float] = {}
 
 
 def default_temp_roots() -> list[str]:
@@ -120,6 +121,11 @@ def ensure_runtime_dirs() -> None:
 def _lock_down_directory(directory: Path) -> None:
     if os.name != "nt" or not directory.exists():
         return
+    key = str(directory.resolve()).casefold()
+    now = time.monotonic()
+    if now - _ACL_CHECKED_AT.get(key, float("-inf")) < 60:
+        return
+    _ACL_CHECKED_AT[key] = now
     try:
         subprocess.run(
             [
@@ -149,28 +155,44 @@ def load_settings() -> AppSettings:
         save_settings(settings)
         return settings
     payload = _read_json_object(SETTINGS_FILE)
-    stored_exclusions = payload.get("scan_exclusions", [])
+    stored_exclusions = _string_list(payload.get("scan_exclusions"), [])
     merged_exclusions: list[str] = []
     for item in [*_prune_legacy_default_exclusions(stored_exclusions), *default_exclusions()]:
         if item and item not in merged_exclusions:
             merged_exclusions.append(item)
-    stored_roots = payload.get("scan_roots", [])
+    stored_roots = _string_list(payload.get("scan_roots"), default_scan_roots())
     merged_roots: list[str] = []
-    for item in [*default_temp_roots(), *stored_roots, *default_scan_roots()]:
+    for item in stored_roots:
         if item and item not in merged_roots:
             merged_roots.append(item)
     return AppSettings(
-        realtime_enabled=payload.get("realtime_enabled", True),
-        process_guard_enabled=payload.get("process_guard_enabled", True),
-        ransomware_guard_enabled=payload.get("ransomware_guard_enabled", True),
-        automatic_quarantine=payload.get("automatic_quarantine", True),
+        realtime_enabled=_boolean_setting(payload, "realtime_enabled", True),
+        process_guard_enabled=_boolean_setting(payload, "process_guard_enabled", True),
+        ransomware_guard_enabled=_boolean_setting(payload, "ransomware_guard_enabled", True),
+        automatic_quarantine=_boolean_setting(payload, "automatic_quarantine", True),
         scan_roots=merged_roots,
         scan_exclusions=merged_exclusions,
-        max_file_size_mb=payload.get("max_file_size_mb", 64),
-        recent_scan_target=payload.get("recent_scan_target", ""),
-        window_geometry=payload.get("window_geometry", ""),
-        language=payload.get("language", "en"),
+        max_file_size_mb=payload.get("max_file_size_mb") if type(payload.get("max_file_size_mb")) is int and 1 <= payload["max_file_size_mb"] <= 1024 else 64,
+        recent_scan_target=_string_setting(payload, "recent_scan_target", ""),
+        window_geometry=_string_setting(payload, "window_geometry", ""),
+        language=_string_setting(payload, "language", "en"),
+        appearance_mode=payload.get("appearance_mode") if payload.get("appearance_mode") in ("light", "dark") else "light",
+        notify_scan_completion=payload.get("notify_scan_completion", False) is True,
     )
+
+
+def _string_list(value: Any, default: list[str]) -> list[str]:
+    return [item for item in value if isinstance(item, str) and item.strip()] if isinstance(value, list) else default
+
+
+def _boolean_setting(payload: dict, key: str, default: bool) -> bool:
+    value = payload.get(key, default)
+    return value if isinstance(value, bool) else default
+
+
+def _string_setting(payload: dict, key: str, default: str) -> str:
+    value = payload.get(key, default)
+    return value if isinstance(value, str) else default
 
 
 def save_settings(settings: AppSettings) -> None:
@@ -184,16 +206,19 @@ def load_json_list(path: Path) -> list[dict]:
         _write_json_atomic(path, [])
         return []
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        backup = path.with_suffix(path.suffix + ".bak")
-        if backup.exists():
-            try:
-                payload = json.loads(backup.read_text(encoding="utf-8"))
-                return payload if isinstance(payload, list) else []
-            except json.JSONDecodeError:
-                return []
-        return []
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, list):
+            return payload
+    except (OSError, ValueError):
+        pass
+    backup = path.with_suffix(path.suffix + ".bak")
+    if backup.exists():
+        try:
+            payload = json.loads(backup.read_text(encoding="utf-8"))
+            return payload if isinstance(payload, list) else []
+        except (OSError, ValueError):
+            pass
+    return []
 
 
 def save_json_list(path: Path, items: list[dict]) -> None:
@@ -257,7 +282,7 @@ def _read_json_object(path: Path) -> dict[str, Any]:
             continue
         try:
             payload = json.loads(candidate.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except (OSError, ValueError):
             continue
         if isinstance(payload, dict):
             return payload
