@@ -1,21 +1,44 @@
-MIT License
+NovaSentinel Personal Use License 1.0
 
 Copyright (c) 2026 Laurent "leaklords"
+All rights reserved except as expressly granted below.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Scope
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+These terms apply to NovaSentinel source code, documentation, and binaries
+distributed under this license, to the extent the licensor holds the relevant
+rights. Third-party components remain subject to their own licenses. These
+terms do not change the rights granted for earlier copies distributed under
+the MIT License or limit rights granted by applicable law.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Free personal use
+
+Individuals may download, install, run, and make private copies of NovaSentinel
+free of charge for their own personal, noncommercial purposes. They may
+privately modify the source code for those same purposes. Copyright and license
+notices must be retained in any copies and private modifications.
+
+3. Paid Enterprise use
+
+Use for any business, professional activity, or on behalf of an organization
+requires a separate paid NovaSentinel Enterprise license. This includes
+internal deployment, use by contractors on behalf of an organization, and
+professional use on a personally owned device. The Enterprise agreement
+governs the scope of the paid license. See https://novasentinel.eu/subscribe/
+or contact contact@novasentinel.eu for licensing.
+
+4. Other rights
+
+This license does not grant permission to redistribute, resell, sublicense,
+or provide NovaSentinel or modified versions as a hosted service. Separate
+written permission is required for those activities unless applicable law
+allows them.
+
+5. Warranty and liability
+
+To the extent permitted by applicable law, NovaSentinel is provided "as is"
+without warranties, express or implied, including warranties of
+merchantability, fitness for a particular purpose, and noninfringement. To
+the same extent, the licensor is not liable for damages arising from use of
+the software. Mandatory consumer rights and liabilities that cannot lawfully
+be excluded remain in effect.

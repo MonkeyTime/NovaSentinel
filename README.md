@@ -101,3 +101,13 @@ sudo bash premium_cloud/tools/deploy-debian.sh
 ## Limits
 
 NovaSentinel is a serious host-based protection project, but it is still a user-space antivirus, not a signed kernel EDR product. It does not yet ship a kernel mini-filter, an AMSI provider, ETW consumers, or a cloud reputation backend.
+
+## License
+
+NovaSentinel is free for individual, noncommercial use under the
+[NovaSentinel Personal Use License](LICENSE). Business, professional, and
+organizational use requires a paid [NovaSentinel Enterprise license](https://novasentinel.eu/subscribe/).
+
+The new terms apply to copies distributed under this license. Earlier copies,
+including the v0.3.0 release, retain the rights granted under the MIT License.
+Third-party components retain their own licenses.
